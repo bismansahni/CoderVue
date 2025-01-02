@@ -1,9 +1,3 @@
-// import Header from './components/Header'
-// import Question from './components/Question'
-// import CodeEditor from './components/CodeEditor'
-// import OutputConsole from './components/OutputConsole'
-// import AIVoiceAnimation from './components/AIVoiceAnimation'
-// import Transcription from './components/Transcription'
 
 import AIVoiceAnimation from "@/components/AIVoiceAnimation";
 import CodeEditor from "@/components/CodeEditor";

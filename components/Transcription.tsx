@@ -1,13 +1,19 @@
-export default function Transcription() {
-  return (
-    <div className="bg-white p-4 rounded shadow flex-grow overflow-y-auto">
-      <h2 className="text-xl font-semibold mb-2">Transcription</h2>
-      <div className="space-y-2">
-        <p><strong>AI:</strong> Hello! Welcome to your coding interview. Are you ready to begin?</p>
-        <p><strong>You:</strong> Yes, I'm ready.</p>
-        <p><strong>AI:</strong> Great! Let's start with the first question. Please take a look at the coding question displayed on your screen.</p>
-      </div>
-    </div>
-  )
+
+
+
+interface TranscriptionProps {
+    onStartInterview: () => void; // Callback for starting the interview
 }
 
+export default function Transcription({ onStartInterview }: TranscriptionProps) {
+    return (
+        <div className="bg-beige-100 text-slate-800 p-6 rounded-lg shadow-md flex-grow overflow-y-auto flex items-center justify-center">
+            <button
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                onClick={onStartInterview}
+            >
+                Start Interview
+            </button>
+        </div>
+    );
+}

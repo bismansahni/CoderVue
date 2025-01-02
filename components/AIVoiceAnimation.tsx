@@ -1,27 +1,123 @@
+//
+//
+//
+// 'use client'
+//
+// import { useState, useEffect } from 'react'
+// import { motion } from 'framer-motion'
+//
+// const VoiceCircle = ({ delay = 0 }) => {
+//     const [isAnimating, setIsAnimating] = useState(false)
+//
+//     useEffect(() => {
+//         const interval = setInterval(() => {
+//             setIsAnimating((prev) => !prev)
+//         }, 1000 + delay)
+//
+//         return () => clearInterval(interval)
+//     }, [delay])
+//
+//     return (
+//         <motion.div
+//             className="w-4 h-4 bg-black rounded-full"
+//             animate={{
+//                 scale: isAnimating ? [1, 1.5, 1] : 1,
+//                 opacity: isAnimating ? [0.3, 1, 0.3] : 0.3,
+//             }}
+//             transition={{
+//                 duration: 1,
+//                 ease: "easeInOut",
+//             }}
+//         />
+//     )
+// }
+//
+// export default function BoxedChatGPTVoice() {
+//     return (
+//         <div className="bg-beige-100 text-slate-800 p-6 rounded-lg">
+//             <div className="flex items-center justify-center space-x-3 h-16">
+//                 <VoiceCircle delay={0} />
+//                 <VoiceCircle delay={250} />
+//                 <VoiceCircle delay={500} />
+//             </div>
+//         </div>
+//     )
+// }
+
 'use client'
 
 import { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
 
-export default function AIVoiceAnimation() {
-  const [isAnimating, setIsAnimating] = useState(false)
+const VoiceCircle = ({ delay = 0, isSpeaking }: { delay: number, isSpeaking: boolean }) => {
+    const [isAnimating, setIsAnimating] = useState(false)
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setIsAnimating((prev) => !prev)
-    }, 1000)
+    useEffect(() => {
+        if (isSpeaking) {
+            setIsAnimating(true); // Start animation when speaking
+        } else {
+            setIsAnimating(false); // Stop animation when not speaking
+        }
+    }, [isSpeaking]); // Trigger animation on isSpeaking change
 
-    return () => clearInterval(interval)
-  }, [])
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (isSpeaking) {
+                setIsAnimating((prev) => !prev);
+            }
+        }, 1000 + delay);
 
-  return (
-    <div className="bg-white p-4 rounded shadow">
-      <h2 className="text-xl font-semibold mb-2">AI Voice</h2>
-      <div className="flex justify-center items-center h-24">
-        <div className={`w-4 h-4 bg-blue-500 rounded-full mr-2 ${isAnimating ? 'animate-ping' : ''}`}></div>
-        <div className={`w-4 h-4 bg-blue-500 rounded-full mr-2 ${isAnimating ? 'animate-ping' : ''}`}></div>
-        <div className={`w-4 h-4 bg-blue-500 rounded-full ${isAnimating ? 'animate-ping' : ''}`}></div>
-      </div>
-    </div>
-  )
+        return () => clearInterval(interval);
+    }, [delay, isSpeaking]); // Adjust interval based on speaking state
+
+    return (
+        <motion.div
+            className="w-4 h-4 bg-black rounded-full"
+            animate={{
+                scale: isAnimating ? [1, 1.5, 1] : 1,
+                opacity: isAnimating ? [0.3, 1, 0.3] : 0.3,
+            }}
+            transition={{
+                duration: 1,
+                ease: "easeInOut",
+            }}
+        />
+    )
 }
 
+export default function BoxedChatGPTVoice() {
+    const [isSpeaking, setIsSpeaking] = useState(false)
+
+    // Handle the speech synthesis events to control the dot animation
+    const speak = (text: string) => {
+        const speech = new SpeechSynthesisUtterance(text);
+        speech.lang = 'en-US'; // Set the language to English (optional)
+
+        // Set speaking status to true when speech starts
+        speech.onstart = () => {
+            setIsSpeaking(true);
+        };
+
+        // Set speaking status to false when speech ends
+        speech.onend = () => {
+            setIsSpeaking(false);
+        };
+
+        window.speechSynthesis.speak(speech); // Speak the provided text
+    };
+
+    // Example usage of speak function
+    useEffect(() => {
+        speak("Hello! I will be taking your interview today. Please remain calm and relaxed throughout the interview.");
+    }, []);
+
+    return (
+        <div className="bg-beige-100 text-slate-800 p-6 rounded-lg">
+            <div className="flex items-center justify-center space-x-3 h-16">
+                <VoiceCircle delay={0} isSpeaking={isSpeaking} />
+                <VoiceCircle delay={250} isSpeaking={isSpeaking} />
+                <VoiceCircle delay={500} isSpeaking={isSpeaking} />
+            </div>
+        </div>
+    );
+}

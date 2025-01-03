@@ -3,7 +3,11 @@
 
 import { useState } from 'react';
 
-const TalkButton = ({ code }) => {
+interface TalkButtonProps {
+    code: string; // Adjust the type based on what `code` should be
+}
+
+const TalkButton: React.FC<TalkButtonProps> = ({ code }) => {
     const [recording, setRecording] = useState(false);
 
     const handleThoughtsSubmit = async () => {
@@ -61,7 +65,7 @@ const TalkButton = ({ code }) => {
         }
     };
 
-    const speakResponse = (text) => {
+    const speakResponse = (text: string) => {
         if ('speechSynthesis' in window) {
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.onend = () => console.log('Finished speaking response');

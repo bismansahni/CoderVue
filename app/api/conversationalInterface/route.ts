@@ -89,7 +89,7 @@
 
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { NextResponse } from "next/server";
+import {NextRequest, NextResponse} from "next/server";
 
 // Initialize the generative AI client
 const API_KEY = process.env.GEMINI_API_KEY || "your-api-key-here";
@@ -99,7 +99,7 @@ const genAI = new GoogleGenerativeAI(API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 // Function to dynamically create the system prompt with a coding question
-function createSystemPrompt(codingQuestion) {
+function createSystemPrompt(codingQuestion:string) {
     return `
         "You are an AI interviewer for a coding round. The candidate is applying for a software development position. 
         As an interviewer, your goal is to assess the candidate's coding skills, problem-solving abilities, and their understanding of algorithms and data structures. 
@@ -124,7 +124,7 @@ function createSystemPrompt(codingQuestion) {
 }
 
 // Initialize conversation history
-const conversationHistory = []; // Array of objects [{ role: "system" | "user" | "assistant", content: string }]
+const conversationHistory: { role: string; content: any; }[] = []; // Array of objects [{ role: "system" | "user" | "assistant", content: string }]
 
 // Function to generate the assistant's response while maintaining conversation history
 async function generateQuestion() {
@@ -146,7 +146,7 @@ async function generateQuestion() {
 }
 
 // Export the POST handler for Next.js API route
-export async function POST(req) {
+export async function POST(req: NextRequest) {
     try {
         const data = await req.json();
         const { message, codingQuestion, code } = data;

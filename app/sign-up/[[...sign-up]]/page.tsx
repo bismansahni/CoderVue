@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { SignUp } from "@clerk/nextjs";
 
 export default function Home() {
-    const router = useRouter();
+    useRouter();
     const [scrolled, setScrolled] = useState(false);
 
     useEffect(() => {

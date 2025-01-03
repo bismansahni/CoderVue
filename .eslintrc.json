@@ -1,3 +1,13 @@
+//{
+//  "extends": ["next/core-web-vitals", "next/typescript"]
+//}
+
+
 {
-  "extends": ["next/core-web-vitals", "next/typescript"]
+  "extends": ["next/core-web-vitals", "next/typescript"],
+  "rules": {
+    "@typescript-eslint/no-explicit-any": "off", // Disable the rule for `any` types
+    "@typescript-eslint/no-unused-vars": "warn", // Warn instead of error for unused variables
+    "react/no-unescaped-entities": "off" // Disable the rule for unescaped entities
+  }
 }

@@ -42,27 +42,10 @@ const VoiceCircle = ({ delay = 0, isSpeaking }: { delay: number, isSpeaking: boo
 }
 
 export default function BoxedChatGPTVoice() {
-    const [isSpeaking, setIsSpeaking] = useState(false)
+    const [isSpeaking] = useState(false)
 
     // Handle the speech synthesis events to control the dot animation
-    const speak = (text: string) => {
-        const speech = new SpeechSynthesisUtterance(text);
-        speech.lang = 'en-US'; // Set the language to English (optional)
-
-        // Set speaking status to true when speech starts
-        speech.onstart = () => {
-            setIsSpeaking(true);
-        };
-
-        // Set speaking status to false when speech ends
-        speech.onend = () => {
-            setIsSpeaking(false);
-        };
-
-        window.speechSynthesis.speak(speech); // Speak the provided text
-    };
-
-    // Example usage of speak function
+// Example usage of speak function
     useEffect(() => {
         // speak("Hello! I will be taking your interview today. Please remain calm and relaxed throughout the interview.");
     }, []);

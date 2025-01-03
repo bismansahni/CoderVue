@@ -6,7 +6,6 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start"
-
   },
   "dependencies": {
     "@chakra-ui/react": "^3.2.4",
@@ -16,6 +15,7 @@
     "@google/generative-ai": "^0.21.0",
     "@headlessui/react": "^2.2.0",
     "@monaco-editor/react": "^4.6.0",
+    "@radix-ui/react-slot": "^1.1.1",
     "@shadcn/ui": "^0.0.4",
     "axios": "^1.7.9",
     "class-variance-authority": "^0.7.1",

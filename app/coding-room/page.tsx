@@ -118,10 +118,52 @@
 
 
 
+//
+// "use client";
+//
+// import { useEffect, useState } from "react";
+// import Header from "@/components/Header";
+// import Question from "@/components/Question";
+// import CodeEditor from "@/components/CodeEditor";
+// import MainButton from "@/components/MainButton";
+// import AIVoiceAnimation from "@/components/AIVoiceAnimation";
+// import Transcription from "@/components/Transcription";
+//
+// export default function InterviewRoom() {
+//     const [currentQuestion, setCurrentQuestion] = useState<string>("");
+//
+//     // Simulate fetching a question (Replace this with actual API call)
+//     useEffect(() => {
+//         setTimeout(() => setCurrentQuestion("What is your experience with React?"), 1000);
+//     }, []);
+//
+//     return (
+//         <div className="flex flex-col h-screen bg-gray-100">
+//             <Header />
+//             <div className="flex-grow flex flex-col md:flex-row p-4 space-y-4 md:space-y-0 md:space-x-4">
+//                 <div className="flex flex-col w-full md:w-3/4 space-y-4 relative">
+//                     <Question question={currentQuestion} />
+//                     {/* CodeEditor and MainButton */}
+//                     <div className="flex flex-col h-full relative">
+//                         <CodeEditor />
+//                         <div className="absolute bottom-0 left-0 w-full flex justify-center">
+//                             <MainButton />
+//                         </div>
+//                     </div>
+//                 </div>
+//                 <div className="w-full md:w-1/4 space-y-4">
+//                     <AIVoiceAnimation />
+//                     <Transcription />
+//                 </div>
+//             </div>
+//         </div>
+//     );
+// }
+
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Header from "@/components/Header";
 import Question from "@/components/Question";
 import CodeEditor from "@/components/CodeEditor";
@@ -132,10 +174,10 @@ import Transcription from "@/components/Transcription";
 export default function InterviewRoom() {
     const [currentQuestion, setCurrentQuestion] = useState<string>("");
 
-    // Simulate fetching a question (Replace this with actual API call)
-    useEffect(() => {
-        setTimeout(() => setCurrentQuestion("What is your experience with React?"), 1000);
-    }, []);
+    // Function to update the current question
+    const handleFetchQuestion = (question: string) => {
+        setCurrentQuestion(question);
+    };
 
     return (
         <div className="flex flex-col h-screen bg-gray-100">
@@ -143,11 +185,10 @@ export default function InterviewRoom() {
             <div className="flex-grow flex flex-col md:flex-row p-4 space-y-4 md:space-y-0 md:space-x-4">
                 <div className="flex flex-col w-full md:w-3/4 space-y-4 relative">
                     <Question question={currentQuestion} />
-                    {/* CodeEditor and MainButton */}
                     <div className="flex flex-col h-full relative">
                         <CodeEditor />
                         <div className="absolute bottom-0 left-0 w-full flex justify-center">
-                            <MainButton />
+                            <MainButton onFetchQuestion={handleFetchQuestion} />
                         </div>
                     </div>
                 </div>

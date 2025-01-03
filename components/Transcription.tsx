@@ -1,19 +1,47 @@
+//
+//
+// "use client";
+//
+// import { useState } from "react";
+// import QuestionFetcher from "@/components/TranscriptionBoxHelper/QuestionFetcher";
+// import TranscriptHandler from "@/components/TranscriptionBoxHelper/TranscriptHandler";
+//
+// export default function Transcription() {
+//     const [question, setQuestion] = useState(null);
+//
+//     return (
+//         <>
+//             {question ? (
+//                 <TranscriptHandler/>
+//             ) : (
+//                 <QuestionFetcher/>
+//             )}
+//         </>
+//     );
+// }
 
 
+"use client";
 
-interface TranscriptionProps {
-    onStartInterview: () => void; // Callback for starting the interview
-}
+import { useState } from "react";
+import QuestionFetcher from "@/components/TranscriptionBoxHelper/QuestionFetcher";
+import TranscriptHandler from "@/components/TranscriptionBoxHelper/TranscriptHandler";
 
-export default function Transcription({ onStartInterview }: TranscriptionProps) {
+export default function Transcription({ setQuestion }: { setQuestion: (question: string) => void }) {
+    const [question, setLocalQuestion] = useState<string | null>(null);
+
+    const handleSetQuestion = (fetchedQuestion: string) => {
+        setLocalQuestion(fetchedQuestion);
+        setQuestion(fetchedQuestion); // Pass the question up to the parent
+    };
+
     return (
-        <div className="bg-beige-100 text-slate-800 p-6 rounded-lg shadow-md flex-grow overflow-y-auto flex items-center justify-center">
-            <button
-                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                onClick={onStartInterview}
-            >
-                Start Interview
-            </button>
-        </div>
+        <>
+            {question ? (
+                <TranscriptHandler question={question} />
+            ) : (
+                <QuestionFetcher setQuestion={handleSetQuestion} />
+            )}
+        </>
     );
 }

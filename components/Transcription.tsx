@@ -38,7 +38,7 @@ export default function Transcription({ setQuestion }: { setQuestion: (question:
     return (
         <>
             {question ? (
-                <TranscriptHandler question={question} />
+                <TranscriptHandler />
             ) : (
                 <QuestionFetcher setQuestion={handleSetQuestion} />
             )}

@@ -149,9 +149,10 @@ async function generateQuestion() {
 export async function POST(req) {
     try {
         const data = await req.json();
-        const { message, codingQuestion } = data;
+        const { message, codingQuestion, code } = data;
         console.log("coding question:", codingQuestion);
         console.log("message:", message);
+        console.log("usercode:", code);
 
         // If codingQuestion is provided and it's the first interaction, set up the system prompt
         if (codingQuestion && conversationHistory.length === 0) {
@@ -162,6 +163,11 @@ export async function POST(req) {
         // Append the user message to the conversation history
         if (message) {
             conversationHistory.push({ role: "user", content: message });
+        }
+
+        if (code) {
+            console.log("usercode:", code);
+            conversationHistory.push({ role: "user", content: `Code: ${code}` });
         }
 
         // Generate the assistant's response

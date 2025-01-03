@@ -1,61 +1,34 @@
-//
-//
-// "use client";
-//
-// import { useState } from "react";
-// import QuestionFetcher from "@/components/TranscriptionBoxHelper/QuestionFetcher";
-// import TranscriptHandler from "@/components/TranscriptionBoxHelper/TranscriptHandler";
-//
-// export default function Transcription() {
-//     const [question, setQuestion] = useState(null);
-//
-//     return (
-//         <>
-//             {question ? (
-//                 <TranscriptHandler/>
-//             ) : (
-//                 <QuestionFetcher/>
-//             )}
-//         </>
-//     );
-// }
-
-//
-// "use client";
-//
-// import { useState } from "react";
-// import QuestionFetcher from "@/components/TranscriptionBoxHelper/QuestionFetcher";
-// import TranscriptHandler from "@/components/TranscriptionBoxHelper/TranscriptHandler";
-//
-// export default function Transcription({ setQuestion }: { setQuestion: (question: string) => void }) {
-//     const [question, setLocalQuestion] = useState<string | null>(null);
-//
-//     const handleSetQuestion = (fetchedQuestion: string) => {
-//         setLocalQuestion(fetchedQuestion);
-//         setQuestion(fetchedQuestion); // Pass the question up to the parent
-//     };
-//
-//     return (
-//         <>
-//             {question ? (
-//                 <TranscriptHandler />
-//             ) : (
-//                 <QuestionFetcher setQuestion={handleSetQuestion} />
-//             )}
-//         </>
-//     );
-// }
 
 
-export default function Transcription() {
+import { useEffect, useRef } from "react";
+
+export default function Transcription({ transcription }: { transcription: Array<{ speaker: string; text: string }> }) {
+    const containerRef = useRef<HTMLDivElement | null>(null);
+
+    // Scroll to the bottom when the transcription updates
+    useEffect(() => {
+        if (containerRef.current) {
+            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+        }
+    }, [transcription]);
+
     return (
-        <div className="bg-white p-4 rounded shadow flex-grow overflow-y-auto">
+        <div
+            ref={containerRef}
+            className="bg-white p-4 rounded shadow overflow-y-auto"
+            style={{
+                maxHeight: "70vh", // Constrain height to a reasonable size (e.g., 50% of viewport)
+                height: "100%",   // Use available height from parent
+            }}
+        >
             <h2 className="text-xl font-semibold mb-2">Transcription</h2>
             <div className="space-y-2">
-                <p><strong>AI:</strong> Hello! Welcome to your coding interview. Are you ready to begin?</p>
-                <p><strong>You:</strong> Yes, I'm ready.</p>
-                <p><strong>AI:</strong> Great! Let's start with the first question. Please take a look at the coding question displayed on your screen.</p>
+                {transcription.map((line, index) => (
+                    <p key={index}>
+                        <strong>{line.speaker}:</strong> {line.text}
+                    </p>
+                ))}
             </div>
         </div>
-    )
+    );
 }

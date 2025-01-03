@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import axios from "axios";
 
 interface TalkButtonProps {
     code: string; // Adjust the type based on what `code` should be
@@ -75,14 +76,38 @@ const TalkButton: React.FC<TalkButtonProps> = ({ code }) => {
         }
     };
 
+    const fetchAQuestion = async () => {
+        try {
+            const response = await axios.post(`/api/getQuestion`);
+            const fetchedQuestion = response.data.question?.trim();
+            setQuestion(fetchedQuestion);
+        } catch (err) {
+            console.error("Error fetching the question:", err);
+            setQuestion("Error fetching the question. Please try again.");
+        }
+    };
+
+
     return (
+        // initially when interview has not started, lets have the start interview button only.
+
+
         <button
-            onClick={handleThoughtsSubmit}
+            onClick={fetchAQuestion}
             className={`mt-6 p-3 ${recording ? 'bg-red-500' : 'bg-slate-600'} text-white rounded-lg shadow-md hover:bg-slate-700 transition-all`}
-            disabled={recording} // Disable the button while recording
+            // Disable the button while recording
         >
-            {recording ? 'Recording...' : 'Talk to the Interviewer'}
+            {Start interview}
         </button>
+
+        // after that when the question has been set, we can have the interview component.
+    <button
+        onClick={handleThoughtsSubmit}
+        className={`mt-6 p-3 ${recording ? 'bg-red-500' : 'bg-slate-600'} text-white rounded-lg shadow-md hover:bg-slate-700 transition-all`}
+        disabled={recording} // Disable the button while recording
+    >
+        {recording ? 'Recording...' : 'Talk to the Interviewer'}
+    </button>
     );
 };
 

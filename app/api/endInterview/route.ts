@@ -1,6 +1,6 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { NextResponse } from "next/server";
+import {NextRequest, NextResponse} from "next/server";
 
 // Initialize the generative AI client
 const API_KEY = process.env.GEMINI_API_KEY;
@@ -55,7 +55,7 @@ async function endInterview(transcription:string, question:string) {
 }
 
 // Export the POST handler for Next.js API route
-export async function POST(req) {
+export async function POST(req:NextRequest) {
     try {
         // Parse request body to get transcription and question
         const { transcription, question } = await req.json();

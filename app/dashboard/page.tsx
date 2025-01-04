@@ -281,6 +281,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Calendar, Code, Play, User } from 'lucide-react';
 import { UserButton, useUser } from "@clerk/nextjs";
+import { v4 as uuidv4 } from 'uuid';
 
 interface Interview {
     id: string;
@@ -326,17 +327,34 @@ export default function Dashboard() {
         fetchInterviews();
     }, [user?.id]); // Add user.id as a dependency to ensure the effect runs when it's available
 
+    // const startNewInterview = () => {
+    //     // pass all the interview questions to the coding room.
+    //     // const questions = pastInterviews.map(interview => interview.question);
+    //
+    //     const questions = pastInterviews.map(interview => interview.question);
+    //     const sessionId = uuidv4();
+    //
+    //     const questionsQuery = encodeURIComponent(JSON.stringify(questions));
+    //
+    //     router.push(`/dashboard/coding-room?questions=${questionsQuery}&sessionId=${sessionId}`);
+    // };
+
+
     const startNewInterview = () => {
-        router.push('/dashboard/coding-room');
+        // Extract all interview questions
+        const questions = pastInterviews.map((interview) => interview.question);
+
+        // Generate a unique session ID
+        const sessionId = uuidv4();
+
+        // Serialize and encode the questions array
+        const questionsQuery = encodeURIComponent(JSON.stringify(questions));
+
+        // Navigate to the coding room with questions and session ID as query parameters
+        router.push(`/dashboard/coding-room?questions=${questionsQuery}&sessionId=${sessionId}`);
     };
 
-    // const viewDetails = (interview: Interview) => {
-    //     // Pass the serialized object as a query parameter
-    //     router.push({
-    //         pathname: `/dashboard/interview/${interview.id}`,
-    //         query: { data: JSON.stringify(interview) }
-    //     });
-    // };
+
 
     const viewDetails = (interview: Interview) => {
         const query = encodeURIComponent(JSON.stringify(interview)); // Serialize and encode the object

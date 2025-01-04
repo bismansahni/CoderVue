@@ -13,9 +13,11 @@ import Transcription from "@/components/Transcription"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useUser } from "@clerk/nextjs";
+import {useRouter} from "next/navigation";
 
 export default function InterviewRoom() {
     const { user } = useUser();
+    const router = useRouter();
     const [currentQuestion, setCurrentQuestion] = useState<string>("")
     const [aiResponse, setAiResponse] = useState<string>("")
     const [transcription, setTranscription] = useState<Array<{ speaker: string; text: string }>>([])
@@ -81,6 +83,7 @@ export default function InterviewRoom() {
     }
 
     const handleEndInterview = async () => {
+        router.push('/dashboard');
 
         try {
             const response = await fetch("/api/endInterview", {

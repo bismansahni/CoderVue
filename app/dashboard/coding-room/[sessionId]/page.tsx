@@ -177,13 +177,13 @@
 //     // console.log(pastInterviewData.data);
 //
 //     const rawQuestions = searchParams.get('questions');
-//     const sessionId = searchParams.get('sessionId');
+//     const [sessionId] = searchParams.get('[sessionId]');
 //
 //     // Deserialize the questions array
 //     const pastquestions = rawQuestions ? JSON.parse(decodeURIComponent(rawQuestions)) : [];
 //
 //     console.log('Questions:', pastquestions);
-//     console.log('Session ID:', sessionId);
+//     console.log('Session ID:', [sessionId]);
 //
 //
 //
@@ -319,7 +319,7 @@
 
 'use client'
 
-import { useState, useEffect } from "react"
+import {useState, useEffect, Suspense} from "react"
 import Header from "@/components/Header"
 import Question from "@/components/Question"
 import CodeEditor from "@/components/CodeEditor"
@@ -328,16 +328,19 @@ import AIVoiceAnimation from "@/components/AIVoiceAnimation"
 import Transcription from "@/components/Transcription"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useUser } from "@clerk/nextjs"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams,useParams } from "next/navigation"
 import axios from "axios"
 
 export default function InterviewRoom() {
     const { user } = useUser()
     const router = useRouter()
     const searchParams = useSearchParams()
+    const params = useParams();
 
     const rawQuestions = searchParams.get("questions")
-    const sessionId = searchParams.get("sessionId")
+    // const sessionId = searchParams.get("sessionId")
+
+    const sessionId = params.sessionId;
 
     const pastQuestions = rawQuestions ? JSON.parse(decodeURIComponent(rawQuestions)) : []
 
@@ -350,39 +353,7 @@ export default function InterviewRoom() {
     const [isSpeaking, setIsSpeaking] = useState<boolean>(false)
     const [currentCode, setCurrentCode] = useState<string>("")
 
-    // const fetchAQuestion = async () => {
-    //     try {
-    //         const response = await axios.post("/api/getQuestion")
-    //         const fetchedQuestion = response.data.question?.trim()
-    //         if (fetchedQuestion) {
-    //             setCurrentQuestion(fetchedQuestion)
-    //             startConversationWithAI(fetchedQuestion)
-    //
-    //             body{  pastQuestions)} //this is of the form of array
-    //
-    //         }
-    //     } catch (err) {
-    //         console.error("Error fetching the question:", err)
-    //     }
-    // }
 
-
-    //
-    // const fetchAQuestion = async () => {
-    //     try {
-    //         const response = await axios.post("/api/getQuestion", {
-    //             pastQuestions:  pastQuestions, // Pass the array directly in the request body
-    //         });
-    //
-    //         const fetchedQuestion = response.data.question?.trim();
-    //         if (fetchedQuestion) {
-    //             setCurrentQuestion(fetchedQuestion);
-    //             startConversationWithAI(fetchedQuestion);
-    //         }
-    //     } catch (err) {
-    //         console.error("Error fetching the question:", err);
-    //     }
-    // };
 
 
     const fetchAQuestion = async () => {
@@ -481,6 +452,7 @@ export default function InterviewRoom() {
     }
 
     return (
+        <Suspense>
         <div className="flex flex-col min-h-screen bg-gray-100">
             <Header onEndInterview={handleEndInterview} />
             <main className="flex-grow container mx-auto px-4 py-4 flex flex-col h-[calc(100vh-40px)]">
@@ -516,5 +488,6 @@ export default function InterviewRoom() {
                 </div>
             </main>
         </div>
+        </Suspense>
     )
 }

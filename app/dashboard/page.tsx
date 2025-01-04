@@ -332,11 +332,11 @@ export default function Dashboard() {
     //     // const questions = pastInterviews.map(interview => interview.question);
     //
     //     const questions = pastInterviews.map(interview => interview.question);
-    //     const sessionId = uuidv4();
+    //     const [sessionId] = uuidv4();
     //
     //     const questionsQuery = encodeURIComponent(JSON.stringify(questions));
     //
-    //     router.push(`/dashboard/coding-room?questions=${questionsQuery}&sessionId=${sessionId}`);
+    //     router.push(`/dashboard/coding-room?questions=${questionsQuery}&[sessionId]=${[sessionId]}`);
     // };
 
 
@@ -351,7 +351,9 @@ export default function Dashboard() {
         const questionsQuery = encodeURIComponent(JSON.stringify(questions));
 
         // Navigate to the coding room with questions and session ID as query parameters
-        router.push(`/dashboard/coding-room?questions=${questionsQuery}&sessionId=${sessionId}`);
+        // router.push(`/dashboard/coding-room?questions=${questionsQuery}&sessionId=${sessionId}`);
+
+        router.push(`/dashboard/coding-room/${sessionId}?questions=${questionsQuery}`);
     };
 
 

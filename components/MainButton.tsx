@@ -138,7 +138,7 @@ const MainButton = ({
         <Button
             onClick={isInterviewStarted ? startListening : fetchAQuestion}
             size="lg"
-            className="w-full sm:w-auto"
+            className="w-full sm:w-[300px] py-4"
         >
             {isInterviewStarted ? (
                 isListening ? (

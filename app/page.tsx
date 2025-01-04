@@ -124,7 +124,7 @@ export default function Home() {
                         variant="outline"
                         className="border-gray-300 text-gray-700 hover:text-gray-900 hover:border-gray-400"
                     >
-                        Get Started
+                      Login
                     </Button>
                 </div>
             </header>

@@ -33,55 +33,69 @@
 //     `;
 // }
 //
-// // Initialize conversation history
-// const conversationHistory: { role: string; content: any; }[] = []; // Array of objects [{ role: "system" | "user" | "assistant", content: string }]
 //
-// // Function to generate the assistant's response while maintaining conversation history
-// async function generateQuestion() {
-//     const prompt = conversationHistory.map(entry => `${entry.role}: ${entry.content}`).join("\n");
+// // In-memory storage for session-specific conversation histories
+// const sessionHistories: Record<string, { role: string; content: string }[]> = {};
+//
+// // Function to generate the assistant's response
+// async function generateResponse(sessionId: string): Promise<string> {
+//     const history = sessionHistories[sessionId] || [];
+//     const prompt = history.map((entry) => `${entry.role}: ${entry.content}`).join("\n");
 //
 //     try {
 //         const result = await model.generateContent(prompt);
-//         const assistantResponse = result.response.text();
-//         console.log("Assistant Response:", assistantResponse);
+//         const assistantResponse = result.response.text()?.trim() || "No response generated.";
 //
-//         // Append the assistant's response to the conversation history
-//         conversationHistory.push({role: "assistant", content: assistantResponse});
+//         // Append the assistant's response to the session history
+//         sessionHistories[sessionId].push({role: "assistant", content: assistantResponse});
 //
 //         return assistantResponse;
 //     } catch (error) {
-//         console.error("Error generating question:", error);
-//         throw new Error("Failed to generate a question.");
+//         console.error("Error generating response:", error);
+//         throw new Error("Failed to generate a response.");
 //     }
 // }
 //
 // // Export the POST handler for Next.js API route
-// export async function POST(req: NextRequest) {
+// export async function POST(req: NextRequest): Promise<NextResponse> {
 //     try {
+//         // Extract sessionId from the query parameters
+//         const sessionId = req.nextUrl.searchParams.get("sessionId");
+//
+//         if (!sessionId) {
+//             throw new Error("Missing sessionId in the query parameters.");
+//         }
+//
 //         const data = await req.json();
 //         const {message, codingQuestion, code} = data;
-//         console.log("coding question:", codingQuestion);
-//         console.log("message:", message);
-//         console.log("usercode:", code);
+//
+//         // Initialize session history if not already present
+//         if (!sessionHistories[sessionId]) {
+//             sessionHistories[sessionId] = [];
+//         }
 //
 //         // If codingQuestion is provided and it's the first interaction, set up the system prompt
-//         if (codingQuestion && conversationHistory.length === 0) {
+//         if (codingQuestion && sessionHistories[sessionId].length === 0) {
 //             const systemPrompt = createSystemPrompt(codingQuestion);
-//             conversationHistory.push({role: "system", content: systemPrompt});
+//             sessionHistories[sessionId].push({role: "system", content: systemPrompt});
 //         }
 //
-//         // Append the user message to the conversation history
+//         // Append user message to the session history
 //         if (message) {
-//             conversationHistory.push({role: "user", content: message});
+//             sessionHistories[sessionId].push({role: "user", content: message});
 //         }
 //
+//         // Append user code to the session history
 //         if (code) {
-//             console.log("usercode:", code);
-//             conversationHistory.push({role: "user", content: `Code: ${code}`});
+//             sessionHistories[sessionId].push({role: "user", content: `Code: ${code}`});
 //         }
 //
 //         // Generate the assistant's response
-//         const response = await generateQuestion();
+//         const response = await generateResponse(sessionId);
+//
+//         console.log("Complete Session Histories:");
+//         console.dir(sessionHistories, {depth: null});
+//
 //
 //         // Return the assistant's response
 //         return NextResponse.json({response});
@@ -93,22 +107,24 @@
 //         );
 //     }
 // }
-//
-//
 
 
 
+import redis from "@/lib/redis";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { NextRequest, NextResponse } from "next/server";
 
-
-import {GoogleGenerativeAI} from "@google/generative-ai";
-import {NextRequest, NextResponse} from "next/server";
+interface SessionEntry {
+    role: string;
+    content: string;
+}
 
 // Initialize the generative AI client
 const API_KEY = process.env.GEMINI_API_KEY || "your-api-key-here";
 
 // Initialize the Gemini API client
 const genAI = new GoogleGenerativeAI(API_KEY);
-const model = genAI.getGenerativeModel({model: "gemini-1.5-flash"});
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 // Function to dynamically create the system prompt with a coding question
 function createSystemPrompt(codingQuestion: string) {
@@ -135,21 +151,35 @@ function createSystemPrompt(codingQuestion: string) {
     `;
 }
 
+// Function to retrieve the session history from Redis
+async function getSessionHistory(sessionId: string) {
+    const sessionData = await redis.get(sessionId);
+    return sessionData ? JSON.parse(sessionData) : [];
+}
 
-// In-memory storage for session-specific conversation histories
-const sessionHistories: Record<string, { role: string; content: string }[]> = {};
+// Function to save the session history to Redis
+// async function saveSessionHistory(sessionId: string, history: { role: string; content: string }[]) {
+//     await redis.set(sessionId, JSON.stringify(history));
+// }
+
+
+async function saveSessionHistory(sessionId: string, history: { role: string; content: string }[]) {
+    const expiryInSeconds = 30 * 60; // 30 minutes
+    await redis.set(sessionId, JSON.stringify(history), "EX", expiryInSeconds);
+}
 
 // Function to generate the assistant's response
 async function generateResponse(sessionId: string): Promise<string> {
-    const history = sessionHistories[sessionId] || [];
-    const prompt = history.map((entry) => `${entry.role}: ${entry.content}`).join("\n");
+    const history = await getSessionHistory(sessionId);
+    const prompt = history.map((entry:SessionEntry) => `${entry.role}: ${entry.content}`).join("\n");
 
     try {
         const result = await model.generateContent(prompt);
         const assistantResponse = result.response.text()?.trim() || "No response generated.";
 
         // Append the assistant's response to the session history
-        sessionHistories[sessionId].push({ role: "assistant", content: assistantResponse });
+        history.push({ role: "assistant", content: assistantResponse });
+        await saveSessionHistory(sessionId, history);
 
         return assistantResponse;
     } catch (error) {
@@ -171,29 +201,33 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         const data = await req.json();
         const { message, codingQuestion, code } = data;
 
-        // Initialize session history if not already present
-        if (!sessionHistories[sessionId]) {
-            sessionHistories[sessionId] = [];
-        }
+        // Get the current session history or initialize it
+        const history = await getSessionHistory(sessionId);
 
         // If codingQuestion is provided and it's the first interaction, set up the system prompt
-        if (codingQuestion && sessionHistories[sessionId].length === 0) {
+        if (codingQuestion && history.length === 0) {
             const systemPrompt = createSystemPrompt(codingQuestion);
-            sessionHistories[sessionId].push({ role: "system", content: systemPrompt });
+            history.push({ role: "system", content: systemPrompt });
         }
 
         // Append user message to the session history
         if (message) {
-            sessionHistories[sessionId].push({ role: "user", content: message });
+            history.push({ role: "user", content: message });
         }
 
         // Append user code to the session history
         if (code) {
-            sessionHistories[sessionId].push({ role: "user", content: `Code: ${code}` });
+            history.push({ role: "user", content: `Code: ${code}` });
         }
+
+        // Save the updated session history
+        await saveSessionHistory(sessionId, history);
 
         // Generate the assistant's response
         const response = await generateResponse(sessionId);
+
+        // console.log("Complete Session Histories:");
+        // console.dir(await getSessionHistory(sessionId), { depth: null });
 
         // Return the assistant's response
         return NextResponse.json({ response });

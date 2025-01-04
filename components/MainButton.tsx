@@ -2,17 +2,48 @@
 //
 // "use client";
 // import axios from "axios";
-// import {useState} from "react";
+// import { useState, useEffect } from "react";
 //
-// const MainButton = ({ onFetchQuestion }: { onFetchQuestion: (question: string) => void }) => {
+// const MainButton = ({
+//                         onFetchQuestion,
+//                         onSendResponse,
+//                     }: {
+//     onFetchQuestion: (question: string) => void;
+//     onSendResponse: (spokenText: string) => void;
+// }) => {
 //     const [isInterviewStarted, setIsInterviewStarted] = useState(false);
+//     const [isListening, setIsListening] = useState(false);
+//     const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
+//
+//     // Initialize Speech Recognition
+//     useEffect(() => {
+//         if ("webkitSpeechRecognition" in window) {
+//             const speechRecognition = new (window as any).webkitSpeechRecognition();
+//             speechRecognition.continuous = false;
+//             speechRecognition.interimResults = false;
+//             speechRecognition.lang = "en-US";
+//
+//             speechRecognition.onstart = () => setIsListening(true);
+//             speechRecognition.onend = () => setIsListening(false);
+//
+//             speechRecognition.onresult = (event: SpeechRecognitionEvent) => {
+//                 const spokenText = event.results[0][0].transcript.trim();
+//                 console.log("Captured Speech:", spokenText);
+//                 onSendResponse(spokenText); // Send the captured text to the parent
+//             };
+//
+//             setRecognition(speechRecognition);
+//         } else {
+//             console.error("SpeechRecognition is not supported in this browser.");
+//         }
+//     }, [onSendResponse]);
 //
 //     const fetchAQuestion = async () => {
 //         try {
 //             const response = await axios.post(`/api/getQuestion`);
 //             const fetchedQuestion = response.data.question?.trim();
 //             if (fetchedQuestion) {
-//                 onFetchQuestion(fetchedQuestion); // Pass the question to parent
+//                 onFetchQuestion(fetchedQuestion); // Pass the question to the parent
 //                 setIsInterviewStarted(true); // Update button state
 //             }
 //         } catch (err) {
@@ -20,14 +51,22 @@
 //         }
 //     };
 //
-//
+//     const startListening = () => {
+//         if (recognition && !isListening) {
+//             recognition.start();
+//         }
+//     };
 //
 //     return (
 //         <button
-//             onClick={fetchAQuestion}
+//             onClick={isInterviewStarted ? startListening : fetchAQuestion}
 //             className="mt-6 p-3 bg-slate-600 text-white rounded-lg shadow-md hover:bg-slate-700 transition-all"
 //         >
-//             {isInterviewStarted ? "Tell Your Thoughts to the Interviewer" : "Start Interview"}
+//             {isInterviewStarted
+//                 ? isListening
+//                     ? "Listening..."
+//                     : "Tell Your Thoughts to the Interviewer"
+//                 : "Start Interview"}
 //         </button>
 //     );
 // };
@@ -36,75 +75,92 @@
 
 
 
-"use client";
-import axios from "axios";
-import { useState, useEffect } from "react";
+"use client"
+
+import { useState, useEffect } from "react"
+import { Button } from "@/components/ui/button"
+import { Mic, Play } from 'lucide-react'
+import axios from "axios"
 
 const MainButton = ({
                         onFetchQuestion,
                         onSendResponse,
                     }: {
-    onFetchQuestion: (question: string) => void;
-    onSendResponse: (spokenText: string) => void;
+    onFetchQuestion: (question: string) => void
+    onSendResponse: (spokenText: string) => void
 }) => {
-    const [isInterviewStarted, setIsInterviewStarted] = useState(false);
-    const [isListening, setIsListening] = useState(false);
-    const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
+    const [isInterviewStarted, setIsInterviewStarted] = useState(false)
+    const [isListening, setIsListening] = useState(false)
+    const [recognition, setRecognition] = useState<SpeechRecognition | null>(null)
 
-    // Initialize Speech Recognition
     useEffect(() => {
         if ("webkitSpeechRecognition" in window) {
-            const speechRecognition = new (window as any).webkitSpeechRecognition();
-            speechRecognition.continuous = false;
-            speechRecognition.interimResults = false;
-            speechRecognition.lang = "en-US";
+            const speechRecognition = new (window as any).webkitSpeechRecognition()
+            speechRecognition.continuous = false
+            speechRecognition.interimResults = false
+            speechRecognition.lang = "en-US"
 
-            speechRecognition.onstart = () => setIsListening(true);
-            speechRecognition.onend = () => setIsListening(false);
+            speechRecognition.onstart = () => setIsListening(true)
+            speechRecognition.onend = () => setIsListening(false)
 
             speechRecognition.onresult = (event: SpeechRecognitionEvent) => {
-                const spokenText = event.results[0][0].transcript.trim();
-                console.log("Captured Speech:", spokenText);
-                onSendResponse(spokenText); // Send the captured text to the parent
-            };
+                const spokenText = event.results[0][0].transcript.trim()
+                console.log("Captured Speech:", spokenText)
+                onSendResponse(spokenText)
+            }
 
-            setRecognition(speechRecognition);
+            setRecognition(speechRecognition)
         } else {
-            console.error("SpeechRecognition is not supported in this browser.");
+            console.error("SpeechRecognition is not supported in this browser.")
         }
-    }, [onSendResponse]);
+    }, [onSendResponse])
 
     const fetchAQuestion = async () => {
         try {
-            const response = await axios.post(`/api/getQuestion`);
-            const fetchedQuestion = response.data.question?.trim();
+            const response = await axios.post(`/api/getQuestion`)
+            const fetchedQuestion = response.data.question?.trim()
             if (fetchedQuestion) {
-                onFetchQuestion(fetchedQuestion); // Pass the question to the parent
-                setIsInterviewStarted(true); // Update button state
+                onFetchQuestion(fetchedQuestion)
+                setIsInterviewStarted(true)
             }
         } catch (err) {
-            console.error("Error fetching the question:", err);
+            console.error("Error fetching the question:", err)
         }
-    };
+    }
 
     const startListening = () => {
         if (recognition && !isListening) {
-            recognition.start();
+            recognition.start()
         }
-    };
+    }
 
     return (
-        <button
+        <Button
             onClick={isInterviewStarted ? startListening : fetchAQuestion}
-            className="mt-6 p-3 bg-slate-600 text-white rounded-lg shadow-md hover:bg-slate-700 transition-all"
+            size="lg"
+            className="w-full sm:w-auto"
         >
-            {isInterviewStarted
-                ? isListening
-                    ? "Listening..."
-                    : "Tell Your Thoughts to the Interviewer"
-                : "Start Interview"}
-        </button>
-    );
-};
+            {isInterviewStarted ? (
+                isListening ? (
+                    <>
+                        <Mic className="mr-2 h-4 w-4 animate-pulse" />
+                        Listening...
+                    </>
+                ) : (
+                    <>
+                        <Mic className="mr-2 h-4 w-4" />
+                        Tell Your Thoughts
+                    </>
+                )
+            ) : (
+                <>
+                    <Play className="mr-2 h-4 w-4" />
+                    Start Interview
+                </>
+            )}
+        </Button>
+    )
+}
 
-export default MainButton;
+export default MainButton
+

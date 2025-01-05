@@ -142,7 +142,7 @@ export default function Home() {
                     <Button
                         onClick={() => router.push('/sign-up')}
                         size="lg"
-                        className="text-lg px-8 py-6 bg-blue-600 hover:bg-blue-700 text-white"
+                        className="text-lg px-8 py-6 bg-blue-600 hover:bg-blue-700 text-white animate-pulse rounded-full"
                     >
                         Start Practicing Now
                     </Button>

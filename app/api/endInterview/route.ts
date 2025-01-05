@@ -136,7 +136,7 @@ async function endInterview(formattedTranscription: string, question: string) {
     const prompt = `
         You are given a transcription of a coding interview where "ai" represents the AI interviewer and "user" represents the candidate.
         Read the transcription and the coding question provided below and provide constructive feedback on the candidate's performance.
-        Additionally, score the interview quality as a percentage. Return the response in this format:
+        Additionally, score the interview quality as a percentage. Give feedback to this, and your feedback should look like a human has spoken it, in plain conversational tone to sound natural.  Return the response in this format:
         {
             "feedback": "Your feedback here",
             "score": 85

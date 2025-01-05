@@ -30,7 +30,10 @@ const geistMono = localFont({
 
 export const metadata: Metadata = {
   title: "CoderVue",
-  description: "Y",
+  description: "Your realtime hands-on AI coding interviewer",
+    icons: {
+        icon: "/logo.png"
+    },
 };
 
 export default function RootLayout({

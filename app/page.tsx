@@ -122,9 +122,9 @@ export default function Home() {
                     <Button
                         onClick={() => router.push('/dashboard')}
                         variant="outline"
-                        className="border-gray-300 text-gray-700 hover:text-gray-900 hover:border-gray-400"
+                        className="border-gray-300 text-gray-700 hover:text-gray-900 hover:border-gray-400 rounded-full"
                     >
-                      Login
+                        Login
                     </Button>
                 </div>
             </header>
@@ -155,17 +155,17 @@ export default function Home() {
                     <h3 className="text-3xl font-bold text-center mb-12 text-gray-900">Why Choose CoderVue?</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
                         <FeatureCard
-                            icon={<Code className="w-12 h-12 text-blue-600" />}
+                            icon={<Code className="w-12 h-12 text-blue-600"/>}
                             title="Real-Time Coding Environment"
                             description="Write and run code in a realistic IDE, just like in actual interviews."
                         />
                         <FeatureCard
-                            icon={<Users className="w-12 h-12 text-blue-600" />}
+                            icon={<Users className="w-12 h-12 text-blue-600"/>}
                             title="Dynamic Interview Scenarios"
                             description="Face unpredictable questions and challenges, simulating real interview conditions."
                         />
                         <FeatureCard
-                            icon={<Play className="w-12 h-12 text-blue-600" />}
+                            icon={<Play className="w-12 h-12 text-blue-600"/>}
                             title="Instant Feedback & Analysis"
                             description="Receive immediate insights on your performance and areas for improvement."
                         />
@@ -177,22 +177,35 @@ export default function Home() {
             <section className="py-20 bg-blue-600 text-white">
                 <div className="container mx-auto px-4 text-center">
                     <h3 className="text-3xl font-bold mb-6">Ready to Ace Your Next Coding Interview?</h3>
-                    <p className="text-xl mb-8">Join thousands of developers who've sharpened their skills with CoderVue.</p>
+                    <p className="text-xl mb-8">Join the growing community of developers sharpening their skills with
+                        CoderVue—your journey starts here</p>
                     <Button
                         onClick={() => router.push('/sign-up')}
                         variant="secondary"
                         size="lg"
-                        className="text-lg px-8 py-6 bg-white text-blue-600 hover:bg-gray-100"
+                        className="text-lg px-8 py-6 bg-white text-blue-600 hover:bg-gray-100 rounded-full"
                     >
-                        Start Free Trial
+                        Get Started
                     </Button>
                 </div>
             </section>
 
-            {/* Footer */}
+
             <footer className="bg-gray-100 py-8">
                 <div className="container mx-auto px-4 text-center text-gray-600">
-                    <p>&copy; 2025 CoderVue. All rights reserved.</p>
+                    <p>
+                        A Creation by: <a href="https://www.linkedin.com/in/bismansahni/" target="_blank"
+                                          rel="noopener noreferrer" className="text-blue-500 hover:underline">Bisman
+                        Sahni</a>
+                    </p>
+                    <p>
+                        Connect with me:
+                        <a href="https://github.com/bismansahni" target="_blank" rel="noopener noreferrer"
+                           className="text-blue-500 hover:underline mx-2">GitHub</a> |
+                        <a href="https://www.linkedin.com/in/bismansahni/" target="_blank" rel="noopener noreferrer"
+                           className="text-blue-500 hover:underline mx-2">LinkedIn</a> |
+                        <a href="mailto:bismansahni@outlook.com" className="text-blue-500 hover:underline mx-2">Email</a>
+                    </p>
                 </div>
             </footer>
         </div>
@@ -205,7 +218,7 @@ type FeatureCardProps = {
     description: string;   // Description is a string
 };
 
-function FeatureCard({ icon, title, description }:FeatureCardProps) {
+function FeatureCard({icon, title, description}: FeatureCardProps) {
     return (
         <div className="bg-white p-6 rounded-lg shadow-md text-center">
             <div className="inline-block mb-4">{icon}</div>

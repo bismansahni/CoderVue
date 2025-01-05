@@ -145,7 +145,7 @@ export default function InterviewRoom() {
                             <CodeEditor onCodeChange={setCurrentCode}/>
                         </div>
                         <div className="lg:w-2/5 flex flex-col space-y-4">
-                            <Card className=" shadow-lg rounded-lg overflow-hidden p-4">
+                            <Card className=" shadow-lg rounded-lg overflow-hidden p-3.5">
 
 
 
@@ -155,7 +155,7 @@ export default function InterviewRoom() {
                                         <AIVoiceAnimation isSpeaking={isSpeaking} />
                                     </div>
                                     <div className="mt-6 flex justify-center w-full">
-                                        <div className="w-full max-w-sm">
+                                        <div className="">
                                             <MainButton
                                                 onFetchQuestion={fetchAQuestion}
                                                 onSendResponse={sendUserResponseToAI}

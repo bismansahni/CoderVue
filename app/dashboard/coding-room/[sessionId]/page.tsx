@@ -316,6 +316,50 @@ export default function InterviewRoom() {
         }
     }
 
+
+    // return (
+    //     <Suspense>
+    //         <div className="flex flex-col min-h-screen bg-gray-100">
+    //             <Header onEndInterview={handleEndInterview} />
+    //             <main className="flex-grow container mx-auto px-4 py-4 flex flex-col h-[calc(100vh-40px)]">
+    //                 <div className="flex flex-col lg:flex-row gap-8 h-full">
+    //                     <div className="flex-grow lg:w-3/5 flex flex-col space-y-4">
+    //                         <Question question={currentQuestion} />
+    //                         <CodeEditor onCodeChange={setCurrentCode} />
+    //                     </div>
+    //                     <div className="lg:w-2/5 flex flex-col space-y-4">
+    //                         <Card>
+    //                             <CardHeader>
+    //                                 <CardTitle>AI Interviewer</CardTitle>
+    //                             </CardHeader>
+    //                             <CardContent>
+    //                                 <AIVoiceAnimation isSpeaking={isSpeaking} />
+    //                             </CardContent>
+    //                         </Card>
+    //                         <div className="flex justify-center">
+    //                             <MainButton
+    //                                 onFetchQuestion={fetchAQuestion} // Fetch a question when the interview starts
+    //                                 onSendResponse={sendUserResponseToAI}
+    //                                 isSpeaking={isSpeaking}// Send the user's spoken response to the API
+    //                             />
+    //                         </div>
+    //                         <Card>
+    //                             <CardHeader>
+    //                                 <CardTitle>Conversation</CardTitle>
+    //                             </CardHeader>
+    //                             <CardContent>
+    //                                 <Transcription transcription={transcription} />
+    //                             </CardContent>
+    //                         </Card>
+    //                     </div>
+    //                 </div>
+    //             </main>
+    //         </div>
+    //     </Suspense>
+    // )
+
+
+
     return (
         <Suspense>
             <div className="flex flex-col min-h-screen bg-gray-100">
@@ -324,28 +368,29 @@ export default function InterviewRoom() {
                     <div className="flex flex-col lg:flex-row gap-8 h-full">
                         <div className="flex-grow lg:w-3/5 flex flex-col space-y-4">
                             <Question question={currentQuestion} />
-                            <CodeEditor onCodeChange={setCurrentCode} />
-                            <div className="flex justify-center">
-                                <MainButton
-                                    onFetchQuestion={fetchAQuestion} // Fetch a question when the interview starts
-                                    onSendResponse={sendUserResponseToAI} // Send the user's spoken response to the API
-                                />
-                            </div>
+                            <CodeEditor onCodeChange={setCurrentCode}  />
                         </div>
                         <div className="lg:w-2/5 flex flex-col space-y-4">
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>AI Interviewer</CardTitle>
+                            <Card className=" shadow-lg rounded-lg overflow-hidden">
+                                <CardHeader className=" text-black">
+                                    <CardTitle className="lg font-semibold">AI Interviewer</CardTitle>
                                 </CardHeader>
-                                <CardContent>
-                                    <AIVoiceAnimation isSpeaking={isSpeaking} />
+                                <CardContent className="p-6 flex flex-col items-center">
+                                    <div className="mb-6">
+                                        <AIVoiceAnimation isSpeaking={isSpeaking} />
+                                    </div>
+                                    <MainButton
+                                        onFetchQuestion={fetchAQuestion}
+                                        onSendResponse={sendUserResponseToAI}
+                                        isSpeaking={isSpeaking}
+                                    />
                                 </CardContent>
                             </Card>
-                            <Card>
+                            <Card className="flex-grow overflow-hidden">
                                 <CardHeader>
                                     <CardTitle>Conversation</CardTitle>
                                 </CardHeader>
-                                <CardContent>
+                                <CardContent className="p-0">
                                     <Transcription transcription={transcription} />
                                 </CardContent>
                             </Card>
@@ -355,4 +400,5 @@ export default function InterviewRoom() {
             </div>
         </Suspense>
     )
+
 }

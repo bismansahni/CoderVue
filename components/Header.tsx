@@ -1,9 +1,6 @@
+import {Card, CardContent} from "@/components/ui/card"
 
-
-
-import { Card, CardContent } from "@/components/ui/card"
-
-export default function Header({ onEndInterview }: { onEndInterview: () => void }) {
+export default function Header({onEndInterview}: { onEndInterview: () => void }) {
     return (
         <Card className="rounded-none">
             <CardContent className="p-2 flex justify-between items-center">

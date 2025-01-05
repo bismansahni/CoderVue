@@ -1,68 +1,5 @@
-//
-// import { GoogleGenerativeAI } from "@google/generative-ai";
-// import { NextResponse } from "next/server";
-//
-// // Initialize the generative AI client
-// const API_KEY = process.env.GEMINI_API_KEY;
-//
-// if (!API_KEY) {
-//     throw new Error("GEMINI_API_KEY is not set in environment variables.");
-// }
-//
-// const genAI = new GoogleGenerativeAI(API_KEY);
-// const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-//
-// // Function to generate a single coding question
-//
-// async function generateQuestion(pastQuestions) {
-//     console.log("pastQuestions received in backend.", pastQuestions);
-//     const prompt = `
-//         You are a coding interviewer conducting an in-person coding round.
-//         Provide a question with easy to medium difficulty.
-//         Do not give any examples or additional details—just the question text as a human would ask another human.
-//         Avoid asking any of the following past questions: ${pastQuestions.join(", ")}.
-//     `;
-//
-//     try {
-//         const result = await model.generateContent(prompt);
-//          console.log(result.response.text());
-//         return result.response.text();
-//     } catch (error) {
-//         console.error("Error in POST /generateQuestion:", error);
-//         return NextResponse.json(
-//             { error: "An error occurred while generating the question." },
-//             { status: 500 }
-//         );
-//     }
-// }
-//
-// // Export the POST handler for Next.js API route
-// export async function POST(req) {
-//     try {
-//         const body = await req.json(); // Parse the request body
-//         const pastQuestions = body.pastQuestions || [];
-//         console.log("Type of pastQuestions is:", typeof pastQuestions);
-//
-//         if (!Array.isArray(pastQuestions)) {
-//             throw new Error("Invalid pastQuestions format. Expected an array.");
-//         }
-//
-//         const question = await generateQuestion(pastQuestions);
-//
-//         return NextResponse.json({ question });
-//     } catch (error) {
-//         console.error("Error in POST /generateQuestion:", error);
-//         return NextResponse.json(
-//             { error: "An error occurred while generating the question." },
-//             { status: 500 }
-//         );
-//     }
-// }
-
-
-
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { NextResponse } from "next/server";
+import {GoogleGenerativeAI} from "@google/generative-ai";
+import {NextResponse} from "next/server";
 
 // Initialize the generative AI client
 const API_KEY = process.env.GEMINI_API_KEY;
@@ -72,7 +9,7 @@ if (!API_KEY) {
 }
 
 const genAI = new GoogleGenerativeAI(API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const model = genAI.getGenerativeModel({model: "gemini-1.5-flash"});
 
 // Function to generate a single coding question
 async function generateQuestion(pastQuestions: string[]): Promise<string> {
@@ -121,12 +58,12 @@ export async function POST(req: Request): Promise<NextResponse> {
 
         const question = await generateQuestion(pastQuestions);
 
-        return NextResponse.json({ question });
+        return NextResponse.json({question});
     } catch (error) {
         console.error("Error in POST /generateQuestion:", error);
         return NextResponse.json(
-            { error: "An error occurred while generating the question." },
-            { status: 500 }
+            {error: "An error occurred while generating the question."},
+            {status: 500}
         );
     }
 }

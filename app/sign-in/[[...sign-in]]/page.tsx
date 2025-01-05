@@ -1,12 +1,9 @@
-
-
-
 'use client'
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { SignIn } from "@clerk/nextjs"
-import { Button } from '@/components/ui/button'
+import {useEffect, useState} from "react"
+import {useRouter} from "next/navigation"
+import {SignIn} from "@clerk/nextjs"
+import {Button} from '@/components/ui/button'
 
 export default function SignInPage() {
     const router = useRouter()
@@ -45,7 +42,7 @@ export default function SignInPage() {
                 <div className="">
                     <h2 className="text-2xl font-bold mb-6 text-center text-gray-900">Sign In to CoderVue</h2>
                     {/*<SignIn />*/}
-                    <SignIn afterSignInUrl="/dashboard" />
+                    <SignIn afterSignInUrl="/dashboard"/>
                 </div>
             </main>
 

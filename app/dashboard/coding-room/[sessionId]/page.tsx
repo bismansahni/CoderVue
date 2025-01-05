@@ -146,19 +146,24 @@ export default function InterviewRoom() {
                         </div>
                         <div className="lg:w-2/5 flex flex-col space-y-4">
                             <Card className=" shadow-lg rounded-lg overflow-hidden">
-                                <CardHeader className=" text-black">
-                                    <CardTitle className="lg font-semibold">AI Interviewer</CardTitle>
-                                </CardHeader>
-                                <CardContent className="p-6 flex flex-col items-center">
-                                    <div className="mb-6">
-                                        <AIVoiceAnimation isSpeaking={isSpeaking}/>
+
+
+
+                                <CardContent className="">
+                                    <div className="flex items-center justify-between w-full">
+                                        <CardTitle className="lg font-semibold">AI Interviewer</CardTitle>
+                                        <AIVoiceAnimation isSpeaking={isSpeaking} />
                                     </div>
-                                    <MainButton
-                                        onFetchQuestion={fetchAQuestion}
-                                        onSendResponse={sendUserResponseToAI}
-                                        isSpeaking={isSpeaking}
-                                    />
+                                    <div className="mt-6 flex justify-center w-full">
+                                        <MainButton
+                                            onFetchQuestion={fetchAQuestion}
+                                            onSendResponse={sendUserResponseToAI}
+                                            isSpeaking={isSpeaking}
+                                        />
+                                    </div>
                                 </CardContent>
+
+
                             </Card>
                             <Card className="flex-grow overflow-hidden">
                                 <CardHeader>

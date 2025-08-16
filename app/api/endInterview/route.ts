@@ -1,8 +1,7 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { AIInterviewer } from "@/lib/openai";
 import { NextRequest, NextResponse } from "next/server";
 import { initializeApp, cert, getApps } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-
 
 // Initialize Firebase Admin SDK
 if (!getApps().length) {
@@ -12,70 +11,15 @@ if (!getApps().length) {
 }
 const db = getFirestore();
 
-// Initialize the generative AI client
-const API_KEY = process.env.GEMINI_API_KEY;
-
-if (!API_KEY) {
-    throw new Error("Missing GEMINI_API_KEY in environment variables.");
-}
-
-const genAI = new GoogleGenerativeAI(API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-// Function to analyze interview transcription and provide feedback
-async function endInterview(formattedTranscription: string, question: string) {
-    console.log("Inside endInterview");
-    console.log("Transcription:", formattedTranscription);
-    console.log("Question:", question);
-
-    const prompt = `
-        You are given a transcription of a coding interview where "ai" represents the AI interviewer and "user" represents the candidate.
-        Read the transcription and the coding question provided below and provide constructive feedback on the candidate's performance.
-        Additionally, score the interview quality as a percentage. Give feedback to this, and your feedback should look like a human has spoken it, in plain conversational tone to sound natural.  Return the response in this format:
-        {
-            "feedback": "Your feedback here",
-            "score": 85
-        }
-
-        Transcription:
-        ${formattedTranscription}
-
-        Question:
-        ${question}
-    `;
-
-    try {
-        console.log("Prompt sent to Gemini:", prompt);
-
-        const result = await model.generateContent(prompt);
-        const responseText = result.response?.text();
-
-        if (!responseText) {
-            throw new Error("Empty response from AI model.");
-        }
-
-        const mockJsonResp = responseText
-            .replace("```json", "")
-            .replace("```", "");
-        const parsedResp = JSON.parse(mockJsonResp);
-
-        return parsedResp; // Return the parsed JSON response
-    } catch (error) {
-        console.error("Error in endInterview function:", error);
-        throw new Error("Failed to analyze interview.");
-    }
-}
-
 // Function to save results to Firestore
 async function saveResultToDb(
     result: any,
     formattedTranscription: string,
     question: string,
     userId: string,
-    userEmail: string
+    userEmail: string,
+    finalCode?: string
 ) {
-   // Generate a unique ID
-
     try {
         await db
             .collection("users")
@@ -87,6 +31,7 @@ async function saveResultToDb(
                 transcription: formattedTranscription,
                 result,
                 userEmail,
+                finalCode: finalCode || '',
                 createdAt: new Date().toISOString(),
             });
 
@@ -101,37 +46,74 @@ async function saveResultToDb(
 export async function POST(req: NextRequest) {
     try {
         // Parse request body to get transcription, question, userId, and userEmail
-        const { transcription, question, userId, userEmail } = await req.json();
+        const { transcription, question, userId, userEmail, finalCode } = await req.json();
 
-        console.log("transcription:", transcription);
-        console.log("question:", question);
-        console.log("userId:", userId);
-        console.log("userEmail:", userEmail);
+        console.log("Ending interview for user:", userId);
+        console.log("Question:", question);
+        console.log("Transcription length:", transcription?.length);
+        console.log("Final code provided:", !!finalCode);
 
+        // Validate required fields
         if (!transcription || !question || !userId || !userEmail) {
             return NextResponse.json(
-                { error: "All fields ('transcription', 'question', 'userId', 'userEmail') are required." },
+                { error: "Missing required fields: transcription, question, userId, or userEmail." },
                 { status: 400 }
             );
         }
 
+        // Format the transcription for better readability
         const formattedTranscription = Array.isArray(transcription)
-            ? transcription.map((entry) => JSON.stringify(entry)).join("\n")
-            : JSON.stringify(transcription);
+            ? transcription.map((item: any) => `${item.speaker}: ${item.text}`).join('\n')
+            : transcription;
 
-        console.log("Formatted Transcription:", formattedTranscription);
+        // Initialize AI Interviewer for evaluation
+        const interviewer = new AIInterviewer();
+        
+        // Get comprehensive evaluation using OpenAI
+        const evaluation = await interviewer.evaluateInterview(
+            formattedTranscription,
+            question,
+            finalCode || 'No code provided'
+        );
 
-        // Call the endInterview function
-        const result = await endInterview(formattedTranscription, question);
+        console.log("AI Evaluation completed:", {
+            score: evaluation.score,
+            strengthsCount: evaluation.strengths.length,
+            improvementsCount: evaluation.improvements.length
+        });
+
+        // Prepare the result object
+        const result = {
+            feedback: evaluation.feedback,
+            score: evaluation.score,
+            strengths: evaluation.strengths,
+            improvements: evaluation.improvements,
+            evaluatedAt: new Date().toISOString()
+        };
 
         // Save the result to Firestore
-        await saveResultToDb(result, formattedTranscription, question, userId, userEmail);
+        await saveResultToDb(
+            result,
+            formattedTranscription,
+            question,
+            userId,
+            userEmail,
+            finalCode
+        );
 
-        return NextResponse.json({ message: "Saved!" });
+        // Return the evaluation result
+        return NextResponse.json({
+            success: true,
+            result,
+            message: "Interview ended and results saved successfully."
+        });
     } catch (error) {
         console.error("Error in POST /endInterview:", error);
         return NextResponse.json(
-            { error: "An error occurred while saving/processing the interview data." },
+            { 
+                error: "An error occurred while ending the interview.",
+                details: error instanceof Error ? error.message : "Unknown error"
+            },
             { status: 500 }
         );
     }

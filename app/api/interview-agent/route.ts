@@ -105,12 +105,15 @@ Respond naturally and contextually:`;
           // ALWAYS transition if user wants to, or after 3 exchanges
           if (wantsToStart) {
             console.log('User wants to start - transitioning to problem');
+            console.log('Setting nextStage to problem_introduction');
             nextStage = 'problem_introduction';
             // Override response to acknowledge transition
             response = "Absolutely! Let me show you today's problem. Take a moment to read through it.";
+            console.log('Will return nextStage:', nextStage);
           } else if (conversationCount >= 3) {
             console.log('3+ exchanges - transitioning to problem');
             nextStage = 'problem_introduction';
+            console.log('Will return nextStage:', nextStage);
           }
         } else {
           // Generate response even without user message
@@ -290,11 +293,18 @@ Respond naturally:`;
         ]);
     }
 
+    console.log('About to return response with:', {
+      hasMessage: !!response,
+      nextStage: nextStage || 'none',
+      agentType,
+      currentStage: stage
+    });
+    
     return NextResponse.json({
       message: response,
       nextStage,
       agentType,
-      stage
+      stage  // This is the current stage that was passed in
     });
 
   } catch (error) {

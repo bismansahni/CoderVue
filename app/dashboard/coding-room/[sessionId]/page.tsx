@@ -67,7 +67,10 @@ function solution() {
   
   // Handle stage changes to update screen
   useEffect(() => {
-    console.log('Stage changed to:', stage)
+    console.log('=== STAGE CHANGE DETECTED ===')
+    console.log('New stage:', stage)
+    console.log('Updating stageRef to match:', stage)
+    stageRef.current = stage // Ensure ref is always in sync
     
     // Map stages to screens
     if (stage === 'greeting') {
@@ -77,6 +80,8 @@ function solution() {
     } else if (stage === 'coding' || stage === 'testing') {
       setScreen('coding')
     }
+    console.log('Screen updated based on stage')
+    console.log('============================')
   }, [stage])
   
   const initializeInterview = async () => {
@@ -368,6 +373,7 @@ function solution() {
       
       const data = await response.json()
       console.log('Agent response:', data)
+      console.log('Response contains nextStage?', data.nextStage ? `Yes: ${data.nextStage}` : 'No')
       
       // Build new history FIRST before any stage transitions
       // Check if last message is the same to prevent duplicates
@@ -376,6 +382,12 @@ function solution() {
       
       if (isDuplicate) {
         console.log('Skipping duplicate assistant message')
+        // BUT still process stage transitions even for duplicates!
+        if (data.nextStage) {
+          console.log('Duplicate message but has stage transition - processing transition')
+          stageRef.current = data.nextStage
+          setStage(data.nextStage)
+        }
         return // Don't add duplicate messages
       }
       

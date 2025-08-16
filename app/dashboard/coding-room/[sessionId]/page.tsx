@@ -515,12 +515,19 @@ function solution() {
         // Clarification agent handles questions and approach discussion
         console.log('Clarification stage - processing:', text)
         
-        // Check if user wants to start coding
-        if (lowerText.includes('ready to code') || lowerText.includes('start coding') ||
-            lowerText.includes("let's code") || lowerText.includes('begin coding') ||
-            lowerText.includes("let's start") || lowerText.includes("i'm ready") ||
-            lowerText.includes("want to code") || lowerText.includes("start implementing") ||
-            lowerText.includes("move to code") || lowerText.includes("open editor")) {
+        // Check if user wants to start coding - be more flexible with matching
+        if (lowerText.includes('ready to code') || 
+            lowerText.includes('start coding') ||
+            lowerText.includes("let's code") || 
+            lowerText.includes('begin coding') ||
+            lowerText.includes("let's start") || 
+            lowerText.includes("i'm ready") ||
+            lowerText.includes("want to code") || 
+            lowerText.includes("start implementing") ||
+            lowerText.includes("move to") && lowerText.includes("cod") || // "move to coding", "move to code"
+            lowerText.includes("open") && lowerText.includes("editor") || // "open editor", "open the editor"
+            lowerText.includes("let's") && lowerText.includes("cod")) { // "let's move to coding", "let's start coding"
+          console.log('User wants to start coding - calling coding_start agent')
           await callAgent('coding_start', text)
         } else {
           // Handle clarification questions or approach discussion

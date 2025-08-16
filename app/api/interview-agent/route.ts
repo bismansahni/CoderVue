@@ -220,13 +220,23 @@ Respond naturally and contextually:`;
           const lowerMessage = userMessage.toLowerCase();
           const lowerResponse = response.toLowerCase();
           
-          if (lowerMessage.includes('ready to code') || 
-              lowerMessage.includes('start coding') ||
-              lowerMessage.includes("let's code") || 
-              lowerMessage.includes('begin coding') ||
-              lowerMessage.includes("start implementing") ||
+          // More flexible matching for coding requests
+          const wantsToCoding = 
+            lowerMessage.includes('ready to code') || 
+            lowerMessage.includes('start coding') ||
+            lowerMessage.includes("let's code") || 
+            lowerMessage.includes('begin coding') ||
+            lowerMessage.includes("start implementing") ||
+            (lowerMessage.includes("move to") && lowerMessage.includes("cod")) ||
+            (lowerMessage.includes("let's") && lowerMessage.includes("cod")) ||
+            (lowerMessage.includes("open") && lowerMessage.includes("editor")) ||
+            lowerMessage.includes("want to code") ||
+            lowerMessage.includes("i'm ready");
+            
+          if (wantsToCoding || 
               lowerResponse.includes("move to the code editor") ||
               lowerResponse.includes("let's move to the editor")) {
+            console.log('User wants to code - transitioning to coding stage');
             nextStage = 'coding';
           }
         } else {

@@ -45,10 +45,12 @@ function solution() {
 function solution() {
   
 }`) // Track code in ref for reliable access
+  const pendingStageTransitionRef = useRef<string | null>(null) // Store pending stage transitions
   
   // Voice state
   const [isListening, setIsListening] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
+  const isSpeakingRef = useRef(false) // Track speaking state in ref for reliable access
   const [transcript, setTranscript] = useState("")
   const [aiMessage, setAiMessage] = useState("")
   const [recognition, setRecognition] = useState<any>(null)
@@ -157,6 +159,12 @@ function solution() {
       // Initialize voice
       initializeVoice()
       
+      // Start listening immediately so user can respond
+      setTimeout(() => {
+        console.log('Starting microphone for initial greeting')
+        startListening()
+      }, 500)
+      
       // Start with greeting agent (only once)
       // Don't use setTimeout with stale closure - call directly after a delay
       await new Promise(resolve => setTimeout(resolve, 1500))
@@ -194,6 +202,12 @@ function solution() {
     }
     
     speechRecognition.onresult = (event: any) => {
+      // Ignore results if AI is speaking (backup check)
+      if (isSpeakingRef.current) {
+        console.log('Ignoring speech result - AI is speaking')
+        return
+      }
+      
       const current = event.resultIndex
       const result = event.results[current]
       const transcript = result[0].transcript
@@ -470,11 +484,12 @@ function solution() {
       }
       window.speechSynthesis.cancel() // Cancel any browser TTS
       
-      // Don't stop listening - keep mic active for natural conversation
-      // stopListening() - REMOVED to keep mic always active
+      // IMPORTANT: Stop listening while AI speaks to prevent feedback
+      stopListening()
       setIsSpeaking(true)
+      isSpeakingRef.current = true
       lastSpokenTextRef.current = text
-      console.log('AI speaking:', text)
+      console.log('AI speaking (mic paused):', text)
       
       // Call OpenAI TTS API with request ID to track duplicates
       const requestId = `${Date.now()}-${Math.random()}`
@@ -502,17 +517,44 @@ function solution() {
       
       audio.onended = () => {
         setIsSpeaking(false)
-        console.log('AI finished speaking - mic still active')
+        isSpeakingRef.current = false
+        console.log('AI finished speaking - restarting mic')
         URL.revokeObjectURL(audioUrl)
         currentAudioRef.current = null
         lastSpokenTextRef.current = "" // Clear last spoken text
-        // Don't restart listening - it should already be running continuously
+        
+        // Process any pending stage transition
+        if (pendingStageTransitionRef.current) {
+          const nextStage = pendingStageTransitionRef.current
+          console.log(`Processing delayed stage transition: ${stageRef.current} → ${nextStage}`)
+          stageRef.current = nextStage
+          setStage(nextStage as InterviewStage)
+          
+          // Handle specific stage transitions
+          if (nextStage === 'problem_introduction' && !hasAskedForThoughtsRef.current) {
+            hasAskedForThoughtsRef.current = true
+            setTimeout(() => {
+              console.log('Calling problem_thoughts after transition')
+              callAgent('problem_thoughts', null, nextStage)
+            }, 3000)
+          }
+          
+          pendingStageTransitionRef.current = null
+        }
+        
+        // Restart listening after AI finishes
+        setTimeout(() => {
+          startListening()
+        }, 100)
       }
       
       audio.onerror = (e) => {
         console.error('Audio playback error:', e)
         setIsSpeaking(false)
+        isSpeakingRef.current = false
         currentAudioRef.current = null
+        // Restart mic before fallback
+        startListening()
         // Fallback to browser TTS
         fallbackSpeak(text)
       }
@@ -528,18 +570,45 @@ function solution() {
   
   const fallbackSpeak = (text: string) => {
     if ('speechSynthesis' in window) {
+      // Stop mic first to prevent feedback
+      stopListening()
       window.speechSynthesis.cancel()
       const utterance = new SpeechSynthesisUtterance(text)
       utterance.rate = 1.1
       
       utterance.onstart = () => {
         setIsSpeaking(true)
-        console.log('AI speaking (fallback TTS) - mic remains active')
+        isSpeakingRef.current = true
+        console.log('AI speaking (fallback TTS) - mic paused')
       }
       utterance.onend = () => {
         setIsSpeaking(false)
-        console.log('AI finished speaking - mic still listening')
-        // Don't restart listening - it should already be running
+        isSpeakingRef.current = false
+        console.log('AI finished speaking (fallback) - restarting mic')
+        
+        // Process any pending stage transition
+        if (pendingStageTransitionRef.current) {
+          const nextStage = pendingStageTransitionRef.current
+          console.log(`Processing delayed stage transition: ${stageRef.current} → ${nextStage}`)
+          stageRef.current = nextStage
+          setStage(nextStage as InterviewStage)
+          
+          // Handle specific stage transitions
+          if (nextStage === 'problem_introduction' && !hasAskedForThoughtsRef.current) {
+            hasAskedForThoughtsRef.current = true
+            setTimeout(() => {
+              console.log('Calling problem_thoughts after transition')
+              callAgent('problem_thoughts', null, nextStage)
+            }, 3000)
+          }
+          
+          pendingStageTransitionRef.current = null
+        }
+        
+        // Restart listening after fallback TTS finishes
+        setTimeout(() => {
+          startListening()
+        }, 100)
       }
       
       window.speechSynthesis.speak(utterance)
@@ -663,32 +732,13 @@ function solution() {
       
       // NOW handle stage transitions with updated history
       if (data.nextStage) {
-        console.log(`Stage transition: ${stage} → ${data.nextStage}`)
-        console.log(`Updating stageRef to: ${data.nextStage}`)
+        console.log(`Stage transition pending: ${stage} → ${data.nextStage}`)
+        console.log(`Will transition after AI finishes speaking`)
         console.log(`AgentType was: ${data.agentType}`)
-        // CRITICAL: Update ref IMMEDIATELY for speech processing
-        stageRef.current = data.nextStage 
-        setStage(data.nextStage)
-        console.log(`Stage and ref updated. New stageRef.current: ${stageRef.current}`)
         
-        // If moving to problem_introduction, announce it and ask for thoughts
-        if (data.nextStage === 'problem_introduction') {
-          console.log('Transitioned to problem_introduction stage - problem is now visible')
-          
-          if (!hasAskedForThoughtsRef.current) {
-            hasAskedForThoughtsRef.current = true // Prevent duplicate calls immediately
-            // Store the new stage value to use in the timeout
-            const newStage = data.nextStage
-            // Now the ref already has the updated history
-            setTimeout(() => {
-              console.log('Calling problem_thoughts with stage:', newStage, ', history has:', conversationHistoryRef.current.length, 'items')
-              // We need to pass the correct stage since setState might not have updated yet
-              callAgent('problem_thoughts', null, newStage)
-            }, 3000) // Give them 3 seconds to read the problem
-          } else {
-            console.log('Skipping problem_thoughts - already asked')
-          }
-        }
+        // Store the pending transition - will be processed after AI finishes speaking
+        pendingStageTransitionRef.current = data.nextStage
+        console.log(`Pending transition stored: ${data.nextStage}`)
       } else {
         console.log('No stage transition suggested by agent')
       }
@@ -697,8 +747,10 @@ function solution() {
       setAiMessage(data.message)
       // Add small delay to prevent double calls from re-renders
       setTimeout(() => {
-        if (!isSpeaking) {
+        if (!isSpeakingRef.current) {
           speak(data.message)
+        } else {
+          console.log('Skipping speak - already speaking')
         }
       }, 100)
       
@@ -708,7 +760,7 @@ function solution() {
       setAiMessage(fallback)
       // Add delay here too
       setTimeout(() => {
-        if (!isSpeaking) {
+        if (!isSpeakingRef.current) {
           speak(fallback)
         }
       }, 100)
@@ -719,8 +771,8 @@ function solution() {
   
   const processUserSpeech = async (text: string) => {
     // Don't process if already processing or if AI is speaking
-    if (isProcessing || isSpeaking) {
-      console.log('Skipping speech processing - busy')
+    if (isProcessing || isSpeakingRef.current) {
+      console.log('Skipping speech processing - busy (processing:', isProcessing, ', speaking:', isSpeakingRef.current, ')')
       return
     }
     

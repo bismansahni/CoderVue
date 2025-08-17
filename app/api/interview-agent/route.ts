@@ -393,6 +393,52 @@ Max 4 words. Often interviewers say nothing. Be distant.`;
         nextStage = null; // Stay in coding
         break;
         
+      case 'testing_feedback':
+        // Provide intelligent feedback based on test results
+        if (userMessage) {
+          try {
+            const testData = JSON.parse(userMessage);
+            const { passed, total, failedExample } = testData;
+            
+            if (failedExample) {
+              // Analyze the failure and provide a hint
+              const prompt = `You're a ${personality} interviewer. The candidate's code failed some tests.
+
+Test failure details:
+- ${passed}/${total} tests passed
+- Failed test: "${failedExample.description}"
+- Input: ${JSON.stringify(failedExample.input)}
+- Expected: ${JSON.stringify(failedExample.expected)}
+- Got: ${JSON.stringify(failedExample.actual)}
+
+Provide a HINT about what might be wrong WITHOUT giving the solution. Focus on:
+- What type of issue it might be (logic, edge case, off-by-one, etc.)
+- Which part of their approach to reconsider
+- DON'T give the exact fix
+
+Examples of good hints:
+- "Check your loop boundaries"
+- "Consider empty input handling"
+- "Review your indexing logic"
+- "Think about the edge case when..."
+
+Max 15 words. Be helpful but don't solve it for them.`;
+
+              response = await interviewer.generateResponse([
+                { role: 'system', content: prompt }
+              ]);
+            } else {
+              // Generic feedback if no specific failure data
+              response = `${passed} of ${total} passed. Check your logic.`;
+            }
+          } catch (e) {
+            // Fallback if parsing fails
+            response = "Some tests failed. Review your approach.";
+          }
+        }
+        nextStage = null; // Stay in testing
+        break;
+        
       case 'testing':
         // Generate testing phase response
         if (userMessage && userMessage.includes('Running tests')) {
@@ -406,17 +452,45 @@ Say ONE of:
 
 Max 4 words.` }
           ]);
+        } else if (userMessage && userMessage.includes('tests passed')) {
+          // Handle test results
+          const passedMatch = userMessage.match(/(\d+)\/(\d+) tests passed/);
+          if (passedMatch) {
+            const passed = parseInt(passedMatch[1]);
+            const total = parseInt(passedMatch[2]);
+            
+            if (passed === 0) {
+              response = await interviewer.generateResponse([
+                { role: 'system', content: `Tests failed. Say ONE of:
+- "Check your logic"
+- "Debug the issue"
+- "Review your code"
+
+Max 4 words.` }
+              ]);
+            } else if (passed < total) {
+              response = await interviewer.generateResponse([
+                { role: 'system', content: `Some tests failed. Say ONE of:
+- "Almost there"
+- "Fix the failing cases"
+- "Check edge cases"
+
+Max 4 words.` }
+              ]);
+            }
+            // Note: If all passed, the frontend handles it and ends the interview
+          }
         } else {
+          // Don't suggest random test values - we have actual test cases
           response = await interviewer.generateResponse([
             { role: 'system', content: `You're a ${personality} interviewer. Testing phase.
 
-Real interviewers ask:
-- "Test it with [1,2,3]"
-- "What about empty input?"
-- "Edge cases?"
-- "Walk me through an example"
+The candidate is reviewing test results. Say ONE of:
+- "Review your approach"
+- "Check the logic"
+- "Debug it"
 
-Pick one. Max 6 words. Direct, no fluff.` }
+Max 4 words. Don't suggest random test values.` }
           ]);
         }
         nextStage = null; // Stay in testing
@@ -454,29 +528,13 @@ Pick one. Max 2 words.` }
   } catch (error) {
     console.error("Error in interview-agent:", error);
     
-    // Generate a natural error recovery message
-    try {
-      const interviewer = new AIInterviewer(personality as any);
-      const fallbackMessage = await interviewer.generateResponse([
-        { role: 'system', content: `You're an interviewer and encountered a technical issue. Give a brief, natural recovery message (max 10 words).` }
-      ]);
-      
-      return NextResponse.json(
-        { 
-          message: fallbackMessage,
-          error: error instanceof Error ? error.message : "Unknown error"
-        },
-        { status: 500 }
-      );
-    } catch (fallbackError) {
-      // If even the fallback fails, use a simple message
-      return NextResponse.json(
-        { 
-          message: "Let's continue. What were you saying?",
-          error: error instanceof Error ? error.message : "Unknown error"
-        },
-        { status: 500 }
-      );
-    }
+    // Return a simple error response
+    return NextResponse.json(
+      { 
+        message: "Let's continue. What were you saying?",
+        error: error instanceof Error ? error.message : "Unknown error"
+      },
+      { status: 500 }
+    );
   }
 }

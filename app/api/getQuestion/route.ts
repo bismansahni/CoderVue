@@ -29,16 +29,22 @@ export async function POST(req: Request): Promise<NextResponse> {
         // Initialize AI Interviewer
         const interviewer = new AIInterviewer();
         
-        // Generate a new question using OpenAI
-        const question = await interviewer.generateQuestion(difficulty, topics, pastQuestions);
+        // Generate complete problem with question, test cases, and function signature
+        const problem = await interviewer.generateFullProblem(difficulty, topics);
 
-        if (!question) {
+        if (!problem.question) {
             throw new Error("Failed to generate a question.");
         }
 
-        console.log("Generated question successfully");
+        console.log("Generated question successfully:", problem.question);
+        console.log("Function signature:", problem.functionSignature);
+        console.log("Test cases:", problem.testCases.length);
 
-        return NextResponse.json({ question });
+        return NextResponse.json({ 
+            question: problem.question,
+            functionSignature: problem.functionSignature,
+            testCases: problem.testCases
+        });
     } catch (error) {
         console.error("Error in POST /getQuestion:", error);
         return NextResponse.json(

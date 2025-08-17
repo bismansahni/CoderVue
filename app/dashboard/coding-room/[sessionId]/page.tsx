@@ -9,6 +9,7 @@ import {
   Terminal, Mic, Volume2, ChevronRight, Loader2,
   MessageSquare, Code2, Sparkles, ChevronUp, ChevronDown, Play
 } from "lucide-react"
+import { usePyodide } from './pyodide-runner'
 
 // Dynamic import Monaco to avoid SSR issues
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { 
@@ -18,6 +19,14 @@ const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
 
 // Interview stages that trigger screen changes
 type InterviewStage = 'greeting' | 'problem_introduction' | 'problem_discussion' | 'coding' | 'run_tests' | 'testing' | 'complete'
+
+// Declare Pyodide on window
+declare global {
+  interface Window {
+    loadPyodide: any
+    pyodide: any
+  }
+}
 type ScreenState = 'greeting' | 'problem' | 'coding' | 'complete'
 
 export default function VoiceInterviewRoom() {
@@ -29,6 +38,9 @@ export default function VoiceInterviewRoom() {
   const sessionId = Array.isArray(params.sessionId) ? params.sessionId[0] : params.sessionId
   const personality = searchParams.get("personality") || "friendly"
   const difficulty = searchParams.get("difficulty") || "medium"
+  
+  // Initialize Pyodide for Python execution
+  const { runner: pyodideRunner, loading: pyodideLoading, error: pyodideError } = usePyodide()
   
   // Core state
   const [stage, setStage] = useState<InterviewStage>('greeting')
@@ -45,9 +57,16 @@ function solution() {
 function solution() {
   
 }`) // Track code in ref for reliable access
+  
+  // Check if current code is Python
+  const isPythonCode = code.includes('def ') || code.includes('import ') || code.includes('print(')
   const pendingStageTransitionRef = useRef<string | null>(null) // Store pending stage transitions
   const approachSummaryRef = useRef<string>('') // Store the discussed approach
+  const testCasesRef = useRef<any[]>([]) // Store test cases for the problem
+  const functionSignatureRef = useRef<string>('') // Store the function signature
   const [showRunButton, setShowRunButton] = useState(false) // Show run tests button
+  const [testResults, setTestResults] = useState<any>(null) // Store test results
+  const [isRunningTests, setIsRunningTests] = useState(false) // Running tests indicator
   
   // Voice state
   const [isListening, setIsListening] = useState(false)
@@ -158,9 +177,21 @@ function solution() {
       })
       const data = await response.json()
       const question = data.question || "Given an array, find two numbers that sum to a target."
+      const testCases = data.testCases || []
+      const functionSignature = data.functionSignature || "function solution() {\n  // Your code here\n}"
+      
       setCurrentQuestion(question)
       currentQuestionRef.current = question // Store in ref for reliable access
+      testCasesRef.current = testCases // Store test cases
+      functionSignatureRef.current = functionSignature // Store function signature
+      
+      // Set initial code to the function signature
+      setCode(functionSignature)
+      codeRef.current = functionSignature
+      
       console.log('Question loaded:', question.substring(0, 50) + '...')
+      console.log('Test cases loaded:', testCases.length)
+      console.log('Function signature:', functionSignature.split('\n')[0])
       
       // Initialize voice
       initializeVoice()
@@ -1015,14 +1046,176 @@ function solution() {
   // Run tests function
   const runTests = async () => {
     console.log('Running tests with code:', codeRef.current)
-    setStage('testing')
-    stageRef.current = 'testing'
+    setIsRunningTests(true)
+    setTestResults(null)
     
-    // Call the testing agent
-    await callAgent('testing', 'Running tests on the code')
-    
-    // TODO: Actually execute the code against test cases
-    // For now, just transition to testing stage
+    try {
+      const currentCode = codeRef.current || code
+      const isPythonCode = currentCode.includes('def ') || currentCode.includes('import ') || currentCode.includes('print(')
+      
+      // If Python code, use Pyodide to run in browser (NO FALLBACK)
+      if (isPythonCode) {
+        console.log('Detected Python code - running with Pyodide')
+        console.log('Pyodide runner available:', !!pyodideRunner)
+        console.log('Test cases:', testCasesRef.current)
+        
+        if (!pyodideRunner) {
+          setTestResults({
+            error: true,
+            message: 'Python runtime is still loading. Please wait and try again.',
+            summary: { total: 0, passed: 0, failed: 0, allPassed: false }
+          })
+          return
+        }
+        
+        try {
+          const data = await pyodideRunner.runTests(currentCode, testCasesRef.current)
+          console.log('Pyodide test results:', data)
+          
+          // Store test results
+          setTestResults(data)
+          
+          // Transition to testing stage
+          setStage('testing')
+          stageRef.current = 'testing'
+          
+          // If all tests passed, end the interview immediately
+          if (data.summary.allPassed) {
+            console.log('All tests passed - ending interview')
+            
+            // Show success message
+            setTestResults(data)
+            
+            // Send completion message
+            const successMessage = "Perfect! All tests passed. Great job on solving the problem!"
+            setAiMessage(successMessage)
+            
+            // Speak the success message
+            await speak(successMessage)
+            
+            // Transition to complete stage after 2 seconds
+            setTimeout(() => {
+              setStage('complete')
+              stageRef.current = 'complete'
+              setScreen('complete')
+              
+              // Optional: Redirect to results page
+              setTimeout(() => {
+                router.push('/dashboard')
+              }, 2000)
+            }, 2000)
+          } else {
+            // Some tests failed - provide helpful feedback
+            console.log('Some tests failed, getting AI feedback')
+            
+            // Find which tests failed and prepare context
+            const failedTests = data.results.filter((r: any) => !r.passed)
+            const firstFailure = failedTests[0]
+            
+            // Create detailed message for AI with test failure info
+            const testContext = {
+              passed: data.summary.passed,
+              total: data.summary.total,
+              failedExample: firstFailure ? {
+                input: firstFailure.input,
+                expected: firstFailure.expected,
+                actual: firstFailure.actual,
+                description: firstFailure.description
+              } : null
+            }
+            
+            // Send to AI for intelligent feedback
+            await callAgent('testing_feedback', JSON.stringify(testContext))
+          }
+        } catch (pyError) {
+          console.error('Pyodide execution error:', pyError)
+          setTestResults({
+            error: true,
+            message: `Python execution error: ${pyError.message || pyError}`,
+            summary: { total: testCasesRef.current.length, passed: 0, failed: testCasesRef.current.length, allPassed: false }
+          })
+        }
+      } else {
+        // JavaScript code - use server API
+        const response = await fetch('/api/runTests', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: currentCode,
+            question: currentQuestionRef.current || currentQuestion,
+            testCases: testCasesRef.current // Send the AI-generated test cases
+          })
+        })
+        
+        const data = await response.json()
+        console.log('Test results:', data)
+        
+        // Store test results
+        setTestResults(data)
+        
+        // Transition to testing stage
+        setStage('testing')
+        stageRef.current = 'testing'
+        
+        // If all tests passed, end the interview immediately
+        if (data.summary.allPassed) {
+          console.log('All tests passed - ending interview')
+          
+          // Show success message
+          setTestResults(data)
+          
+          // Send completion message
+          const successMessage = "Perfect! All tests passed. Great job on solving the problem!"
+          setAiMessage(successMessage)
+          
+          // Speak the success message
+          await speak(successMessage)
+          
+          // Transition to complete stage after 2 seconds
+          setTimeout(() => {
+            setStage('complete')
+            stageRef.current = 'complete'
+            setScreen('complete')
+            
+            // Optional: Redirect to results page
+            setTimeout(() => {
+              router.push('/dashboard')
+            }, 2000)
+          }, 2000)
+        } else {
+          // Some tests failed - provide helpful feedback
+          console.log('Some tests failed, getting AI feedback')
+          
+          // Find which tests failed and prepare context
+          const failedTests = data.results.filter((r: any) => !r.passed)
+          const firstFailure = failedTests[0]
+          
+          // Create detailed message for AI with test failure info
+          const testContext = {
+            passed: data.summary.passed,
+            total: data.summary.total,
+            failedExample: firstFailure ? {
+              input: firstFailure.input,
+              expected: firstFailure.expected,
+              actual: firstFailure.actual,
+              description: firstFailure.description
+            } : null
+          }
+          
+          // Send to AI for intelligent feedback
+          await callAgent('testing_feedback', JSON.stringify(testContext))
+        }
+      }
+      
+    } catch (error) {
+      console.error('Failed to run tests:', error)
+      setTestResults({ 
+        error: true, 
+        message: 'Failed to run tests. Check your code syntax.' 
+      })
+    } finally {
+      setIsRunningTests(false)
+    }
   }
   
   // Track code changes with debouncing
@@ -1333,21 +1526,89 @@ function solution() {
                     </div>
                   )}
                   
+                  {/* Pyodide Loading Status */}
+                  {isPythonCode && pyodideLoading && (
+                    <div className="mt-4 p-3 bg-blue-900/20 border border-blue-700 rounded-lg">
+                      <div className="flex items-center gap-2 text-blue-400">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span className="text-sm">Loading Python runtime...</span>
+                      </div>
+                    </div>
+                  )}
+                  
                   {/* Run Tests Button */}
-                  {showRunButton && (
+                  {showRunButton && !testResults && (
                     <div className="mt-4 p-4 bg-gray-800 rounded-lg">
-                      <p className="text-sm text-gray-300 mb-3">Ready to test your solution?</p>
+                      <p className="text-sm text-gray-300 mb-3">
+                        {isPythonCode && pyodideLoading 
+                          ? 'Python runtime loading...' 
+                          : 'Ready to test your solution?'}
+                      </p>
                       <button
                         onClick={async () => {
                           setShowRunButton(false)
-                          // Execute tests
                           await runTests()
                         }}
-                        className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center justify-center space-x-2"
+                        disabled={isRunningTests || (isPythonCode && !pyodideRunner)}
+                        className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-lg flex items-center justify-center space-x-2"
                       >
-                        <Play className="h-4 w-4" />
-                        <span>Run Tests</span>
+                        {isRunningTests ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Running Tests...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-4 w-4" />
+                            <span>Run Tests</span>
+                          </>
+                        )}
                       </button>
+                    </div>
+                  )}
+                  
+                  {/* Test Results */}
+                  {testResults && (
+                    <div className="mt-4 p-4 bg-gray-800 rounded-lg">
+                      <h4 className="text-sm font-mono text-gray-300 mb-3">Test Results</h4>
+                      
+                      {testResults.error ? (
+                        <div className="text-red-400 text-sm">{testResults.message}</div>
+                      ) : (
+                        <>
+                          <div className={`text-sm mb-3 ${testResults.summary.allPassed ? 'text-green-400' : 'text-yellow-400'}`}>
+                            {testResults.message}
+                          </div>
+                          
+                          <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {testResults.results.map((test: any, idx: number) => (
+                              <div key={idx} className={`p-2 rounded text-xs ${test.passed ? 'bg-green-900/30' : 'bg-red-900/30'}`}>
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-gray-400">{test.description}</span>
+                                  <span className={test.passed ? 'text-green-400' : 'text-red-400'}>
+                                    {test.passed ? '✓' : '✗'}
+                                  </span>
+                                </div>
+                                {!test.passed && (
+                                  <div className="text-gray-500">
+                                    Expected: {JSON.stringify(test.expected)}, Got: {JSON.stringify(test.actual)}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          
+                          <button
+                            onClick={() => {
+                              setTestResults(null)
+                              setShowRunButton(true)
+                            }}
+                            className="mt-3 w-full px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded text-sm"
+                          >
+                            Run Again
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

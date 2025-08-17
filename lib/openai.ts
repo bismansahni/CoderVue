@@ -208,39 +208,110 @@ Response must be valid JSON.`;
     }
   }
 
+  async generateFullProblem(
+    difficulty: 'easy' | 'medium' | 'hard',
+    topics: string[]
+  ): Promise<{
+    question: string;
+    functionSignature: string;
+    testCases: any[];
+  }> {
+    const prompt = `Generate a ${difficulty} coding interview problem. Topics: ${topics.join(', ')}.
+
+You must provide a complete problem specification in JSON format with:
+1. question: The problem statement (1-2 sentences, conversational)
+2. functionName: The function name to use
+3. functionSignature: The exact function signature/template (in Python)
+4. testCases: Array of 5 test cases with inputs and expected outputs
+
+Example response format:
+{
+  "question": "Given an array of integers, find two numbers that add up to a target sum.",
+  "functionName": "twoSum",
+  "functionSignature": "def two_sum(nums: list[int], target: int) -> list[int]:\\n    # Your code here\\n    return []",
+  "testCases": [
+    {
+      "input": [[2,7,11,15], 9],
+      "expected": [0,1],
+      "description": "Basic case"
+    },
+    {
+      "input": [[3,2,4], 6],
+      "expected": [1,2],
+      "description": "Different indices"
+    },
+    {
+      "input": [[3,3], 6],
+      "expected": [0,1],
+      "description": "Duplicate values"
+    },
+    {
+      "input": [[], 0],
+      "expected": [],
+      "description": "Empty array"
+    },
+    {
+      "input": [[1,2,3,4,5], 10],
+      "expected": [],
+      "description": "No solution exists"
+    }
+  ]
+}
+
+IMPORTANT:
+- Make test cases specific to the problem
+- Include edge cases (empty, null, single element)
+- Include cases with no solution if applicable
+- For multiple parameters, use arrays in input
+- The function signature should be in Python with type hints
+
+Generate the complete problem specification:`;
+
+    try {
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        max_tokens: 800,
+        response_format: { type: 'json_object' }
+      });
+
+      const response = completion.choices[0]?.message?.content || '{}';
+      const parsed = JSON.parse(response);
+      
+      return {
+        question: parsed.question || "Find two numbers that sum to a target.",
+        functionSignature: parsed.functionSignature || "def solution(input):\n    # Your code here\n    return None",
+        testCases: parsed.testCases || [
+          { input: "test", expected: "test", description: "Default test" }
+        ]
+      };
+    } catch (error) {
+      console.error('Error generating problem:', error);
+      // Fallback
+      return {
+        question: "Find two numbers in an array that sum to a target.",
+        functionSignature: "def two_sum(nums: list[int], target: int) -> list[int]:\n    # Your code here\n    return []",
+        testCases: [
+          { input: [[2,7,11,15], 9], expected: [0,1], description: "Basic case" }
+        ]
+      };
+    }
+  }
+
+  // Keep old methods for backward compatibility
   async generateQuestion(
     difficulty: 'easy' | 'medium' | 'hard',
     topics: string[],
     avoidQuestions: string[]
   ): Promise<string> {
-    const prompt = `Generate a ${difficulty} coding interview question. Topic: ${topics.join(', ')}.
+    const problem = await this.generateFullProblem(difficulty, topics);
+    return problem.question;
+  }
 
-IMPORTANT: Format it EXACTLY like a real interviewer would present it verbally. Keep it simple and conversational.
-
-Examples of good format:
-"Given an array of integers, find two numbers that add up to a target sum."
-"Write a function to find the longest substring without repeating characters."
-"I want you to reverse a linked list."
-
-Rules:
-- ONE or TWO sentences max
-- No markdown, no formatting, no examples
-- Just the core problem statement
-- Natural spoken language
-- Should take 20-30 minutes to solve
-
-Avoid these: ${avoidQuestions.slice(-3).join('; ')}
-
-Your question:`;
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.8,
-      max_tokens: 100,
-    });
-
-    return completion.choices[0]?.message?.content || '';
+  async generateTestCases(question: string): Promise<any[]> {
+    // This is now just a fallback, we use generateFullProblem instead
+    return [];
   }
 }
 

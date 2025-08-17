@@ -67,6 +67,21 @@ export default function CodeEditor({
                         value={code}
                         onChange={handleEditorChange}
                         theme={theme}
+                        options={{
+                            minimap: { enabled: false },
+                            fontSize: 14,
+                            lineHeight: 22,
+                            tabSize: 4,  // Standard indentation
+                            insertSpaces: true,
+                            detectIndentation: false,
+                            wordWrap: 'on',
+                            autoIndent: 'full',  // Smart auto-indentation
+                            formatOnPaste: true,
+                            formatOnType: true,
+                            automaticLayout: true,
+                            acceptSuggestionOnTab: false,  // Allow tab to insert tabs
+                            tabCompletion: 'off'  // Disable tab completion
+                        }}
                     />
                 </div>
             </CardContent>

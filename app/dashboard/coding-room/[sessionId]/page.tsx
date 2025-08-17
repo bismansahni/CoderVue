@@ -46,6 +46,7 @@ function solution() {
   
 }`) // Track code in ref for reliable access
   const pendingStageTransitionRef = useRef<string | null>(null) // Store pending stage transitions
+  const approachSummaryRef = useRef<string>('') // Store the discussed approach
   
   // Voice state
   const [isListening, setIsListening] = useState(false)
@@ -464,6 +465,11 @@ function solution() {
   const speakingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
   const speak = async (text: string) => {
+    console.log('=== SPEAK CALLED ===')
+    console.log('Text to speak:', text)
+    console.log('Currently speaking?', isSpeakingRef.current)
+    console.log('Last spoken text:', lastSpokenTextRef.current)
+    
     // Prevent duplicate calls for the same text
     if (lastSpokenTextRef.current === text && isSpeaking) {
       console.log('Already speaking this text, skipping duplicate')
@@ -479,6 +485,7 @@ function solution() {
     try {
       // Cancel any existing speech first
       if (currentAudioRef.current) {
+        console.log('Canceling existing audio')
         currentAudioRef.current.pause()
         currentAudioRef.current = null
       }
@@ -527,6 +534,32 @@ function solution() {
         if (pendingStageTransitionRef.current) {
           const nextStage = pendingStageTransitionRef.current
           console.log(`Processing delayed stage transition: ${stageRef.current} → ${nextStage}`)
+          
+          // If transitioning to coding, first get approach summary
+          if (nextStage === 'coding' && stageRef.current === 'clarification') {
+            console.log('Transitioning to coding - getting approach summary')
+            const clarificationHistory = stageHistories.current['clarification'] || []
+            if (clarificationHistory.length > 0) {
+              // Make API call to summarize approach
+              fetch('/api/interview-agent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  agentType: 'approach_summary',
+                  stage: 'clarification',
+                  sessionId,
+                  personality,
+                  history: clarificationHistory
+                })
+              }).then(res => res.json()).then(summaryData => {
+                approachSummaryRef.current = summaryData.message
+                console.log('Approach summary stored:', summaryData.message)
+              }).catch(err => {
+                console.error('Failed to get approach summary:', err)
+              })
+            }
+          }
+          
           stageRef.current = nextStage
           setStage(nextStage as InterviewStage)
           
@@ -535,7 +568,18 @@ function solution() {
             hasAskedForThoughtsRef.current = true
             setTimeout(() => {
               console.log('Calling problem_thoughts after transition')
-              callAgent('problem_thoughts', null, nextStage)
+              // Only call if not already speaking
+              if (!isSpeakingRef.current) {
+                callAgent('problem_thoughts', null, nextStage)
+              } else {
+                console.log('Skipping problem_thoughts - still speaking')
+                // Try again later
+                setTimeout(() => {
+                  if (!isSpeakingRef.current) {
+                    callAgent('problem_thoughts', null, nextStage)
+                  }
+                }, 2000)
+              }
             }, 3000)
           }
           
@@ -560,6 +604,7 @@ function solution() {
       }
       
       await audio.play()
+      console.log('Audio playback started successfully')
       
     } catch (error) {
       console.error('OpenAI TTS error:', error)
@@ -598,7 +643,18 @@ function solution() {
             hasAskedForThoughtsRef.current = true
             setTimeout(() => {
               console.log('Calling problem_thoughts after transition')
-              callAgent('problem_thoughts', null, nextStage)
+              // Only call if not already speaking
+              if (!isSpeakingRef.current) {
+                callAgent('problem_thoughts', null, nextStage)
+              } else {
+                console.log('Skipping problem_thoughts - still speaking')
+                // Try again later
+                setTimeout(() => {
+                  if (!isSpeakingRef.current) {
+                    callAgent('problem_thoughts', null, nextStage)
+                  }
+                }, 2000)
+              }
             }, 3000)
           }
           
@@ -677,7 +733,8 @@ function solution() {
           userMessage,
           code: actualStage === 'coding' ? (codeRef.current || code) : undefined,
           question: currentQuestionRef.current || currentQuestion, // Use ref as primary source,
-          history
+          history,
+          approachSummary: actualStage === 'coding' ? approachSummaryRef.current : undefined
         })
       })
       
@@ -877,30 +934,30 @@ function solution() {
       interventionCount: interventionCountRef.current
     })
     
-    // Much more conservative - minimum 90 seconds between interventions
-    if (timeSinceLastIntervention < 90) {
+    // Much more conservative - minimum 5 minutes between interventions
+    if (timeSinceLastIntervention < 300) {
       console.log('Too soon since last intervention, skipping')
       return
     }
     
-    // Only intervene after 3+ interventions if really necessary
-    if (interventionCountRef.current >= 3 && timeSinceLastIntervention < 120) {
+    // Only intervene after 2 interventions if really necessary
+    if (interventionCountRef.current >= 2 && timeSinceLastIntervention < 600) {
       console.log('Too many interventions already, being less intrusive')
       return
     }
     
     // Very conservative intervention triggers
-    if (timeSinceLastCode > 150 && timeSinceLastVoice > 90) {
-      // User seems stuck - 2.5 minutes no code + 1.5 minutes no voice
+    if (timeSinceLastCode > 360 && timeSinceLastVoice > 180) {
+      // User seems stuck - 6 minutes no code + 3 minutes no voice
       console.log('Triggering stuck intervention')
       triggerIntervention('stuck')
-    } else if (timeSinceLastCode > 180) {
-      // No code changes for 3+ minutes
+    } else if (timeSinceLastCode > 420) {
+      // No code changes for 7+ minutes
       console.log('Triggering no_progress intervention')
       triggerIntervention('no_progress')
     } else if (detectFunctionCompletion(codeRef.current || code)) {
-      // User just completed a function - only if 2+ minutes passed
-      if (timeSinceLastIntervention > 120) {
+      // User just completed a function - only if 6+ minutes passed
+      if (timeSinceLastIntervention > 360) {
         console.log('Triggering function_complete intervention')
         triggerIntervention('function_complete')
       }
@@ -948,28 +1005,23 @@ function solution() {
       lastVoiceActivityRef.current = Date.now()
       interventionCountRef.current = 0
       
-      // Wait 90 seconds before starting ANY monitoring to let user get settled
+      // Wait 5 minutes before starting ANY monitoring to let user get settled
       const startMonitoringDelay = setTimeout(() => {
-        console.log('Starting code monitoring after 90s delay')
+        console.log('Starting code monitoring after 5min delay')
         
-        // Check every 30 seconds for intervention opportunities (less frequent)
+        // Check every 90 seconds for intervention opportunities (much less frequent)
         const monitoringInterval = setInterval(() => {
           analyzeCodeProgress()
-        }, 30000) // Check every 30 seconds instead of 20
+        }, 90000) // Check every 90 seconds instead of 60
         
         // Store for cleanup
         interventionTimerRef.current = monitoringInterval as any
         
         return () => clearInterval(monitoringInterval)
-      }, 90000) // 90 second delay before monitoring starts (was 45)
+      }, 300000) // 5 minute delay before monitoring starts
       
-      // First check-in after 3 minutes (if no other interventions)
-      const firstCheckIn = setTimeout(() => {
-        if (stageRef.current === 'coding' && interventionCountRef.current === 0) {
-          console.log('First periodic check-in after 3 minutes')
-          triggerIntervention('periodic_checkin')
-        }
-      }, 180000) // 3 minutes (was 2.5)
+      // NO first check-in - it's annoying
+      const firstCheckIn = null
       
       return () => {
         clearTimeout(startMonitoringDelay)
@@ -1228,8 +1280,11 @@ function solution() {
                         padding: { top: 16, bottom: 16 },
                         scrollBeyondLastLine: false,
                         automaticLayout: true,
-                        tabSize: 2,
+                        tabSize: 4,  // Python standard is 4 spaces
+                        insertSpaces: true,
+                        detectIndentation: false,
                         wordWrap: 'on',
+                        autoIndent: 'full',  // Smart indentation
                         suggestOnTriggerCharacters: true,
                         quickSuggestions: {
                           other: true,
@@ -1240,11 +1295,13 @@ function solution() {
                         formatOnPaste: true,
                         formatOnType: true,
                         acceptSuggestionOnCommitCharacter: true,
+                        acceptSuggestionOnTab: false,  // Allow tab to insert tabs
                         snippetSuggestions: 'inline',
                         suggest: {
                           showKeywords: true,
                           showSnippets: true,
-                        }
+                        },
+                        tabCompletion: 'off'  // Disable tab completion
                       }}
                     />
                   </div>

@@ -1142,7 +1142,6 @@ function solution() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             code: currentCode,
-            question: currentQuestionRef.current || currentQuestion,
             testCases: testCasesRef.current // Send the AI-generated test cases
           })
         })

@@ -299,20 +299,6 @@ Generate the complete problem specification:`;
     }
   }
 
-  // Keep old methods for backward compatibility
-  async generateQuestion(
-    difficulty: 'easy' | 'medium' | 'hard',
-    topics: string[],
-    avoidQuestions: string[]
-  ): Promise<string> {
-    const problem = await this.generateFullProblem(difficulty, topics);
-    return problem.question;
-  }
-
-  async generateTestCases(question: string): Promise<any[]> {
-    // This is now just a fallback, we use generateFullProblem instead
-    return [];
-  }
 }
 
 export default openai;

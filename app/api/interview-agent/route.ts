@@ -274,7 +274,7 @@ Pick one. Max 4 words. Neutral tone.` }
           const hasReturn = code ? code.includes('return') : false;
           const codeProgress = hasFunction && hasReturn ? 'making progress' : 'just starting';
           
-          const prompt = `You're a ${personality} interviewer watching someone code.
+          const prompt = `You're a ${personality} interviewer in the CODING stage. The candidate is implementing their solution.
 
 Their code:
 \`\`\`
@@ -282,17 +282,19 @@ ${code || '// No code yet'}
 \`\`\`
 
 Candidate says: "${userMessage}"
+${approachSummary ? `\nNote: They already discussed their approach: "${approachSummary}"` : ''}
 
-REAL interviewer behavior:
-- "Can you see my code?" → "Yes" or "Yep" or "I see it"
-- If explaining their logic → "Okay" or "Mhm" or "Go on"
-- If stuck → "What are you thinking?" or "Where are you stuck?"
-- If asking for help → "What have you tried?"
-- Don't point out errors unless asked
-- Don't teach or explain concepts
-- Be mostly silent, let them work
+CRITICAL: You're in CODING stage, NOT problem discussion. They already have an approach.
 
-1-8 words MAX. Neutral, professional.`;
+REAL interviewer responses:
+- "Can you see my code?" → "Yes" or "Yep" 
+- "Is this correct?" → "Walk me through it" or "Test it"
+- If explaining → "Mhm" or "Go on"
+- If stuck → "What's the issue?"
+- "I'm done" → "Test it" or "What's the complexity?"
+- NEVER ask about approach again - they're already coding!
+
+1-5 words MAX. Let them code.`;
 
           response = await interviewer.generateResponse([
             { role: 'system', content: prompt }

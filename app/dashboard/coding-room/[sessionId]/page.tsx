@@ -53,6 +53,7 @@ function solution() {
   const [aiMessage, setAiMessage] = useState("")
   const [recognition, setRecognition] = useState<any>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [audioLevel, setAudioLevel] = useState(0) // Visual feedback for mic input
   
   // Session history for context
   const [conversationHistory, setConversationHistory] = useState<Array<{role: string, content: string}>>([])
@@ -173,16 +174,19 @@ function solution() {
     }
   }
   
-  const initializeVoice = () => {
+  const initializeVoice = async () => {
     if (!('webkitSpeechRecognition' in window)) {
       console.error('Speech recognition not supported')
       return
     }
     
+    // Initialize speech recognition first (it can work without getUserMedia)
     const speechRecognition = new (window as any).webkitSpeechRecognition()
-    speechRecognition.continuous = true
+    // Use non-continuous mode for better accuracy and responsiveness
+    speechRecognition.continuous = false  // Changed from true to prevent lag
     speechRecognition.interimResults = true
     speechRecognition.lang = "en-US"
+    speechRecognition.maxAlternatives = 3  // Get alternatives for better accuracy
     
     speechRecognition.onstart = () => {
       setIsListening(true)
@@ -190,19 +194,33 @@ function solution() {
     }
     
     speechRecognition.onresult = (event: any) => {
-      // Get the current segment
       const current = event.resultIndex
-      const transcript = event.results[current][0].transcript
+      const result = event.results[current]
+      const transcript = result[0].transcript
+      const confidence = result[0].confidence
+      
+      // Log confidence for debugging
+      if (result.isFinal) {
+        console.log('Recognition confidence:', confidence || 'N/A')
+        
+        // Check alternatives if confidence is low
+        if (confidence && confidence < 0.8 && result.length > 1) {
+          console.log('Low confidence, alternatives available:')
+          for (let i = 1; i < Math.min(result.length, 3); i++) {
+            console.log(`  Alt ${i}: "${result[i].transcript}" (conf: ${result[i].confidence})`)
+          }
+        }
+      }
       
       // Clear any existing silence timer
       if (silenceTimerRef.current) {
         clearTimeout(silenceTimerRef.current)
       }
       
-      if (event.results[current].isFinal) {
-        // Add to accumulated transcript
+      if (result.isFinal) {
+        // Final result - add to accumulated transcript
         accumulatedTranscriptRef.current += (accumulatedTranscriptRef.current ? ' ' : '') + transcript
-        console.log('Segment:', transcript)
+        console.log('Final segment:', transcript)
         console.log('Accumulated so far:', accumulatedTranscriptRef.current)
         
         // Track voice activity for intervention system
@@ -211,7 +229,7 @@ function solution() {
         // Show accumulated transcript
         setTranscript(accumulatedTranscriptRef.current)
         
-        // Set timer to process after silence
+        // Reduced silence timeout for faster response (1000ms instead of 1500ms)
         silenceTimerRef.current = setTimeout(() => {
           const fullText = accumulatedTranscriptRef.current.trim()
           if (fullText) {
@@ -220,10 +238,22 @@ function solution() {
             accumulatedTranscriptRef.current = ''
             setTranscript('')
           }
-        }, 1500) // Wait 1.5 seconds of silence before processing
+        }, 1000) // Reduced from 1500ms to 1000ms for faster response
+        
+        // Since we're in non-continuous mode, restart recognition
+        setTimeout(() => {
+          if (!isSpeaking && recognition) {
+            try {
+              recognition.start()
+              console.log('Restarted recognition after final result')
+            } catch (e) {
+              console.log('Recognition already started:', e)
+            }
+          }
+        }, 100)
         
       } else {
-        // Show interim results (current segment + what we have so far)
+        // Show interim results
         const tempTranscript = accumulatedTranscriptRef.current + 
           (accumulatedTranscriptRef.current ? ' ' : '') + transcript
         setTranscript(tempTranscript)
@@ -231,18 +261,54 @@ function solution() {
     }
     
     speechRecognition.onerror = (event: any) => {
-      console.error('Speech error:', event.error)
-      // Auto restart on common errors
-      if (event.error === 'no-speech' || event.error === 'aborted') {
-        setTimeout(() => startListening(), 500)
+      console.error('Speech recognition error:', event.error, event)
+      
+      // Handle different error types
+      switch(event.error) {
+        case 'no-speech':
+          console.log('No speech detected - restarting...')
+          setTimeout(() => {
+            if (recognition && !isSpeaking) {
+              try {
+                recognition.start()
+              } catch (e) {
+                console.log('Failed to restart after no-speech:', e)
+              }
+            }
+          }, 100)
+          break
+          
+        case 'aborted':
+          console.log('Recognition aborted - restarting...')
+          setTimeout(() => startListening(), 200)
+          break
+          
+        case 'audio-capture':
+          console.error('Microphone error - check permissions')
+          alert('Microphone access error. Please check your microphone and permissions.')
+          break
+          
+        case 'network':
+          console.error('Network error - retrying...')
+          setTimeout(() => startListening(), 1000)
+          break
+          
+        case 'not-allowed':
+          console.error('Microphone permission denied')
+          alert('Microphone permission denied. Please allow microphone access and refresh.')
+          break
+          
+        default:
+          console.log('Unknown error, attempting restart...')
+          setTimeout(() => startListening(), 500)
       }
     }
     
     speechRecognition.onend = () => {
-      console.log('Voice: Listening ended - will auto-restart')
+      console.log('Voice: Recognition ended')
       
-      // Process any remaining accumulated text
-      if (accumulatedTranscriptRef.current.trim()) {
+      // Process any remaining accumulated text if silence timer hasn't fired
+      if (accumulatedTranscriptRef.current.trim() && !silenceTimerRef.current) {
         const fullText = accumulatedTranscriptRef.current.trim()
         console.log('Processing remaining text on end:', fullText)
         processUserSpeech(fullText)
@@ -250,40 +316,120 @@ function solution() {
         setTranscript('')
       }
       
-      // ALWAYS restart for continuous listening - don't check conditions
-      setTimeout(() => {
-        console.log('Auto-restarting voice recognition (always on)...')
-        try {
-          speechRecognition.start()
-          setIsListening(true)
-        } catch (e) {
-          console.log('Restart failed, trying again:', e)
-          setTimeout(() => {
-            try {
-              speechRecognition.start()
-              setIsListening(true)
-            } catch (e2) {
-              console.log('Second restart attempt failed:', e2)
+      // Auto-restart for continuous listening experience
+      // Only restart if not speaking and not processing
+      if (!isSpeaking && !isProcessing) {
+        setTimeout(() => {
+          console.log('Auto-restarting recognition...')
+          try {
+            speechRecognition.start()
+            setIsListening(true)
+          } catch (e: any) {
+            if (e.message && e.message.includes('already started')) {
+              console.log('Recognition already running')
+            } else {
+              console.log('Restart failed, retrying:', e.message)
+              // Retry once more after a short delay
+              setTimeout(() => {
+                try {
+                  speechRecognition.start()
+                  setIsListening(true)
+                  console.log('Restart successful on retry')
+                } catch (e2) {
+                  console.error('Failed to restart recognition:', e2)
+                }
+              }, 500)
             }
-          }, 500)
-        }
-      }, 200) // Quick restart for seamless listening
+          }
+        }, 100) // Quick restart for seamless experience
+      } else {
+        console.log('Not restarting - speaking or processing')
+      }
     }
     
     setRecognition(speechRecognition)
+    
+    // Try to get enhanced audio stream (optional enhancement)
+    try {
+      // Get high-quality audio stream with preprocessing
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,      // Remove echo from speakers
+          noiseSuppression: true,      // Remove background noise (fans, typing)
+          autoGainControl: true,       // Normalize volume levels
+          sampleRate: 44100,          // High quality sample rate
+          channelCount: 1,            // Mono is sufficient for speech
+          latency: 0,                 // Request low latency
+          sampleSize: 16              // 16-bit audio depth
+        }
+      })
+      
+      console.log('Got enhanced audio stream with noise suppression')
+      
+      // Optional: Create audio context for additional processing if needed
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const source = audioContext.createMediaStreamSource(stream)
+      
+      // Monitor audio levels (optional - for debugging)
+      const analyser = audioContext.createAnalyser()
+      source.connect(analyser)
+      analyser.fftSize = 256
+      
+      // Monitor audio levels for visual feedback
+      const checkAudioLevel = () => {
+        const dataArray = new Uint8Array(analyser.frequencyBinCount)
+        analyser.getByteFrequencyData(dataArray)
+        const average = dataArray.reduce((a, b) => a + b) / dataArray.length
+        
+        // Update audio level for UI (normalized 0-100)
+        const normalizedLevel = Math.min(100, Math.round((average / 128) * 100))
+        setAudioLevel(normalizedLevel)
+        
+        if (average > 20) { // Log significant audio
+          console.log('Audio level:', Math.round(average), 'Normalized:', normalizedLevel)
+        }
+      }
+      
+      // Check audio level more frequently for smoother visualization
+      setInterval(checkAudioLevel, 100) // Every 100ms
+      
+    } catch (error) {
+      console.warn('Could not get enhanced audio stream, using default:', error)
+      // Speech recognition will still work with default audio
+    }
     
     // Start listening after delay
     setTimeout(() => startListening(), 2000)
   }
   
   const startListening = () => {
-    if (recognition && !isListening && !isSpeaking) {
+    if (recognition && !isSpeaking) {
       try {
         recognition.start()
+        setIsListening(true)
         console.log('Started listening')
-      } catch (e) {
-        console.log('Already listening')
+      } catch (e: any) {
+        if (e.message && e.message.includes('already started')) {
+          console.log('Recognition already active')
+          setIsListening(true)
+        } else {
+          console.error('Failed to start recognition:', e)
+          // Retry after a short delay
+          setTimeout(() => {
+            try {
+              recognition.start()
+              setIsListening(true)
+              console.log('Started listening on retry')
+            } catch (retryError) {
+              console.error('Retry failed:', retryError)
+            }
+          }, 500)
+        }
       }
+    } else if (isSpeaking) {
+      console.log('Not starting - AI is speaking')
+    } else if (!recognition) {
+      console.log('Recognition not initialized')
     }
   }
   

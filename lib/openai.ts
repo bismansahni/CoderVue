@@ -213,23 +213,31 @@ Response must be valid JSON.`;
     topics: string[],
     avoidQuestions: string[]
   ): Promise<string> {
-    const prompt = `Generate a ${difficulty} coding interview question focusing on: ${topics.join(', ')}.
+    const prompt = `Generate a ${difficulty} coding interview question. Topic: ${topics.join(', ')}.
 
-Requirements:
-- Clear problem statement
-- Include input/output examples
-- Mention constraints
-- Should be solvable in 20-30 minutes
+IMPORTANT: Format it EXACTLY like a real interviewer would present it verbally. Keep it simple and conversational.
 
-Avoid these previously asked questions: ${avoidQuestions.slice(-5).join('; ')}
+Examples of good format:
+"Given an array of integers, find two numbers that add up to a target sum."
+"Write a function to find the longest substring without repeating characters."
+"I want you to reverse a linked list."
 
-Format the question professionally as it would appear in a real interview.`;
+Rules:
+- ONE or TWO sentences max
+- No markdown, no formatting, no examples
+- Just the core problem statement
+- Natural spoken language
+- Should take 20-30 minutes to solve
+
+Avoid these: ${avoidQuestions.slice(-3).join('; ')}
+
+Your question:`;
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.8,
-      max_tokens: 400,
+      max_tokens: 100,
     });
 
     return completion.choices[0]?.message?.content || '';

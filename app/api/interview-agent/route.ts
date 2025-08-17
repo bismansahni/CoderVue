@@ -32,23 +32,19 @@ export async function POST(req: NextRequest) {
     // Route to different agent behaviors based on type
     switch(agentType) {
       case 'greeting':
-        // Generate initial greeting using AI based on personality
-        const greetingPrompt = `You are a ${personality} technical interviewer starting a coding interview session.
+        // Generate natural, casual greeting like a real interviewer
+        const greetingPrompt = `You're a ${personality} tech interviewer. Be casual and natural.
 
-Your personality style:
-- friendly: warm, supportive, encouraging
-- google: professional, algorithmic-focused, analytical
-- amazon: leadership-focused, principle-driven, thorough
-- startup: casual, practical, fast-paced
+STYLE GUIDE:
+- friendly: "Hey, how's it going?"
+- google: "Hey there, how are you doing today?"
+- amazon: "Morning! How are you?"
+- startup: "Hey! How's it going?"
 
-Generate a natural greeting that:
-1. Welcomes the candidate
-2. Sets the tone for the interview
-3. Asks how they're doing or feeling
-4. Keep it to 1-2 sentences
-5. Be authentic to your personality style
+Just greet them casually. ONE short sentence. No excitement, no "welcome to", no formality.
+Talk like you would to a colleague, not a student.
 
-Generate greeting:`;
+Your casual greeting:`;
 
         response = await interviewer.generateResponse([
           { role: 'system', content: greetingPrompt }
@@ -68,22 +64,24 @@ Generate greeting:`;
             `${msg.role === 'user' ? 'Candidate' : 'You'}: ${msg.content}`
           ).join('\n');
           
-          const prompt = `You are a ${personality} technical interviewer in a coding interview.
+          const prompt = `You're a ${personality} tech interviewer. Keep it natural and conversational.
 
 Previous conversation:
 ${conversationContext}
 
-Candidate just said: "${userMessage}"
-Number of exchanges so far: ${conversationCount}
+Candidate said: "${userMessage}"
+Exchanges so far: ${conversationCount}
 
-Your task:
-1. If they mention "code/coding/start/begin/ready/problem/let's go", respond: "Absolutely! Let me show you today's problem."
-2. Otherwise, respond naturally and contextually to what they said
-3. Remember what was said before - don't repeat yourself
-4. If this is the 3rd or 4th exchange, transition: "Great! Let me share today's coding problem with you."
-5. Keep response under 2 sentences
+RULES:
+1. If they said they're good/fine/well, respond AND transition: "Good to hear. Let's jump into the problem."
+2. If they ask how you are: "Doing well, thanks. Let's get started."
+3. If they mention code/start/ready: "Alright, here's the problem."
+4. After 1 exchange, MUST transition: "Cool, let's dive in." or "Alright, let me show you the problem."
+5. Keep it SHORT - max 1-2 brief sentences.
+6. Talk naturally - no excitement, no "great!", no "excellent!"
+7. DRIVE THE CONVERSATION - always push forward to the problem
 
-Respond naturally and contextually:`;
+Your casual response:`;
 
           const aiResponse = await interviewer.generateResponse([
             { role: 'system', content: prompt }
@@ -102,16 +100,18 @@ Respond naturally and contextually:`;
             lowerMsg.includes("let's") ||
             lowerMsg.includes('skip');
             
-          // ALWAYS transition if user wants to, or after 3 exchanges
+          // ALWAYS transition if user wants to, or after 1 exchange
           if (wantsToStart) {
             console.log('User wants to start - transitioning to problem');
             console.log('Setting nextStage to problem_introduction');
             nextStage = 'problem_introduction';
             // Override response to acknowledge transition
-            response = "Absolutely! Let me show you today's problem. Take a moment to read through it.";
+            response = "Alright, here's today's problem.";
             console.log('Will return nextStage:', nextStage);
-          } else if (conversationCount >= 3) {
-            console.log('3+ exchanges - transitioning to problem');
+          } else if (conversationCount >= 1) {
+            console.log('1+ exchanges - transitioning to problem');
+            // Let the AI's natural response play, THEN transition
+            // The response should already include transition language from the prompt
             nextStage = 'problem_introduction';
             console.log('Will return nextStage:', nextStage);
           }
@@ -125,54 +125,51 @@ Respond naturally and contextually:`;
         break;
         
       case 'problem_thoughts':
-        // Proactively ask for initial thoughts when problem is first shown
-        const thoughtsPrompt = `You are a ${personality} technical interviewer. The candidate just saw this problem:
+        // Ask for thoughts like a real interviewer
+        const thoughtsPrompt = `You're a ${personality} interviewer. The candidate is looking at the problem.
 
-${question}
+Be brief and natural. Examples:
+- "Take a sec to read through it."
+- "Let me know when you're ready."
+- "What do you think?"
+- "Initial thoughts?"
 
-Generate a natural response that:
-1. Gives them a moment to read it
-2. Asks for their initial thoughts and approach
-3. Encourages them to think out loud
-4. Keep it to 2-3 sentences
-5. Be encouraging and supportive
+ONE short sentence. Casual, not formal.
 
-Example responses:
-- "Take a moment to read through that. What are your initial thoughts on how you might approach this?"
-- "Alright, there's the problem. What's your first instinct about how to solve this?"
-- "Take your time reading it. When you're ready, I'd love to hear your initial approach."
-
-Generate a natural response:`;
+Your brief comment:`;
 
         response = await interviewer.generateResponse([
           { role: 'system', content: thoughtsPrompt }
         ]);
-        // Stay in problem_introduction stage, don't auto-transition
         break;
         
       case 'problem_ready':
         // Use AI to respond naturally after they've seen the problem
         if (userMessage) {
-          const prompt = `You are a ${personality} technical interviewer. The candidate just saw the problem and responded.
+          const prompt = `You are a ${personality} technical interviewer. The candidate just saw the problem.
 
 Problem shown: ${question}
 Candidate said: "${userMessage}"
 
-Your task:
-1. Acknowledge their response naturally
-2. Ask about their initial thoughts and approach
-3. Encourage them to think out loud
-4. Keep response under 3 sentences
-5. Be encouraging but also probe their understanding
+BE NATURAL:
+1. Acknowledge briefly: "Okay" or "Alright" or "Mhm"
+2. Push for approach: "What's your thinking?" or "How would you tackle this?"
+3. ONE sentence. Brief. Natural.
 
-Respond naturally:`;
+Examples:
+- "Alright, what's your approach?"
+- "Okay, how would you solve this?"
+- "Hmm, what are you thinking?"
+- "So what's the plan?"
+
+Your response:`;
 
           response = await interviewer.generateResponse([
             { role: 'system', content: prompt }
           ]);
         } else {
           response = await interviewer.generateResponse([
-            { role: 'system', content: `As a ${personality} interviewer, the candidate just saw the problem. Ask about their initial thoughts and approach. Be encouraging and natural.` }
+            { role: 'system', content: `As a ${personality} interviewer, ask about their approach. Examples: "What's your approach?" or "How would you tackle this?" - ONE sentence.` }
           ]);
         }
         nextStage = 'clarification';
@@ -192,25 +189,28 @@ Respond naturally:`;
             `${msg.role === 'user' ? 'Candidate' : 'Interviewer'}: ${msg.content}`
           ).join('\n');
           
-          const prompt = `You are a ${personality} technical interviewer in the clarification/approach discussion phase.
+          const prompt = `You're a ${personality} interviewer discussing the approach.
 
 Problem: ${question}
 
-Recent conversation:
-${recentHistory}
+Candidate said: "${userMessage}"
+Exchanges: ${conversationInStage}
 
-Candidate just said: "${userMessage}"
-Exchanges in this stage: ${conversationInStage}
+BE NATURAL AND DIRECTIVE:
+1. Answer clarifications briefly: "Yeah, exactly" or "No duplicates, correct"
+2. IMMEDIATELY push for approach: "So what's your approach?" or "How would you solve this?"
+3. After 1 exchange, PUSH TO CODE: "Let's see the code" or "Show me what you got"
+4. If they want to code: "Go ahead"
+5. ONE sentence responses. Brief.
+6. DRIVE FORWARD - don't let them linger
 
-Your task:
-1. If they ask a clarifying question, answer helpfully without giving away the solution
-2. If they describe their approach, provide feedback and ask follow-up questions
-3. After 3-4 good exchanges about approach, suggest: "Your approach sounds solid! When you're ready, just say 'I'm ready to code' and we'll move to the editor."
-4. If they explicitly say they want to code/start/implement, respond with: "Excellent! Let's move to the code editor. Feel free to think out loud as you implement your solution."
-5. Keep responses under 3 sentences
-6. Remember the context of what was discussed - don't repeat questions
+Examples:
+- "Yep, that's right"
+- "What's the time complexity?"
+- "Let's code it up"
+- "Show me what you're thinking"
 
-Respond naturally and contextually:`;
+Your brief response:`;
 
           response = await interviewer.generateResponse([
             { role: 'system', content: prompt }
@@ -249,7 +249,15 @@ Respond naturally and contextually:`;
       case 'coding_start':
         // Generate transition to coding message
         response = await interviewer.generateResponse([
-          { role: 'system', content: `As a ${personality} interviewer, the candidate is ready to start coding. Welcome them to the coding phase, encourage them to think out loud, and let them know you're there to help. Keep it brief and encouraging.` }
+          { role: 'system', content: `As a ${personality} interviewer, the candidate is ready to code.
+
+EXAMPLES:
+- "Alright, go ahead"
+- "Let's see what you got"
+- "Take your time"
+- "Go for it"
+
+ONE brief sentence. No encouragement, no "I'm here to help", just acknowledge they're coding.` }
         ]);
         nextStage = 'coding';
         break;
@@ -268,7 +276,7 @@ Respond naturally and contextually:`;
           const hasReturn = code ? code.includes('return') : false;
           const codeProgress = hasFunction && hasReturn ? 'making progress' : 'just starting';
           
-          const prompt = `You are a ${personality} technical interviewer helping during the coding phase.
+          const prompt = `You are a ${personality} technical interviewer. The candidate is coding.
 
 ${question ? `Problem: ${question}` : 'The candidate is working on a coding problem.'}
 
@@ -276,23 +284,28 @@ ${code ? `Current code (${codeLines} lines, ${codeProgress}):\n\`\`\`javascript\
 
 Candidate says: "${userMessage}"
 
-Your task:
-1. If they say they're stuck or can't do it, provide gentle hints without giving the solution
-2. If they explain their code, acknowledge and encourage
-3. If they seem stuck, ask guiding questions like "What have you tried so far?" or "What part is challenging?"
-4. If they ask about test cases, help them think through edge cases
-5. Be supportive and encouraging, especially if they're struggling
-6. Keep response under 3 sentences
-7. Reference their actual code when relevant
+BE REALISTIC:
+1. If stuck: "What's the issue?" or "Where are you getting stuck?"
+2. If explaining: "Mhm" or "Right" or "I see"
+3. If asking for help: Give ONE small hint, not the solution
+4. Test cases: "What about empty input?" or "Think about edge cases"
+5. Keep it SHORT - 1-2 sentences max
+6. Don't be overly helpful or supportive
 
-Respond naturally and helpfully:`;
+Examples:
+- "What's your approach?"
+- "Try thinking about the base case"
+- "What happens if the array is empty?"
+- "Walk me through this logic"
+
+Your brief response:`;
 
           response = await interviewer.generateResponse([
             { role: 'system', content: prompt }
           ]);
         } else {
           response = await interviewer.generateResponse([
-            { role: 'system', content: `As a ${personality} interviewer during the coding phase, check in with the candidate about their progress. Be supportive and encourage them to think out loud.` }
+            { role: 'system', content: `As a ${personality} interviewer, briefly check on progress. Examples: "How's it going?" or "Talk me through your approach" - ONE sentence.` }
           ]);
         }
         // Stay in coding stage - no transition needed
@@ -331,19 +344,19 @@ Respond naturally and helpfully:`;
         
         switch(interventionType) {
           case 'stuck':
-            interventionPrompt = `Generate a gentle check-in. The candidate seems stuck (no code or voice activity). Ask if they need help or want to talk through their approach. Be encouraging.`;
+            interventionPrompt = `Give a subtle hint. Examples: "Hmm, what if we used a different data structure?" or "Have you considered the sorted property?" or "What's happening in this loop?"`;
             break;
           case 'no_progress':
-            interventionPrompt = `The candidate hasn't written code for a while. Check in to see what they're thinking about. Maybe they're planning their approach.`;
+            interventionPrompt = `Natural check-in: "So what's your approach?" or "Walk me through your thinking" or "What are you considering?"`;
             break;
           case 'function_complete':
-            interventionPrompt = `The candidate just completed a function. Acknowledge their progress and ask about their approach or edge cases.`;
+            interventionPrompt = `Quick follow-up: "What's the runtime?" or "Any edge cases?" or "How would you test this?"`;
             break;
           case 'periodic_checkin':
-            interventionPrompt = `Do a friendly periodic check-in. Ask how their solution is coming along.`;
+            interventionPrompt = `Brief check: "How's it going?" or "What's your plan?" or "Where are we at?"`;
             break;
           default:
-            interventionPrompt = `Check in on the candidate's progress. Be supportive and encouraging.`;
+            interventionPrompt = `Natural comment: "What are you thinking?" or "Talk me through this"`;
         }
         
         const prompt = `You are a ${personality} technical interviewer. You need to proactively check in on the candidate during coding.
@@ -369,7 +382,15 @@ Your check-in:`;
       case 'testing':
         // Generate testing phase response
         response = await interviewer.generateResponse([
-          { role: 'system', content: `As a ${personality} interviewer, guide the candidate through testing their solution. Ask them to walk through test cases and edge cases. Be thorough but supportive.` }
+          { role: 'system', content: `As a ${personality} interviewer, time to test the code.
+
+Examples:
+- "Let's test this with an example"
+- "Walk me through a test case"
+- "What if the input is empty?"
+- "Try it with [1,2,3]"
+
+ONE sentence. Direct. No fluff.` }
         ]);
         nextStage = 'testing';
         break;
@@ -377,7 +398,7 @@ Your check-in:`;
       default:
         // Generate contextual response based on current stage
         response = await interviewer.generateResponse([
-          { role: 'system', content: `As a ${personality} interviewer, respond appropriately to the candidate. Current stage: ${stage}. Be natural and helpful.` }
+          { role: 'system', content: `As a ${personality} interviewer at stage: ${stage}. Be brief and natural. ONE sentence max. Examples: "Go on", "What else?", "Okay", "Continue"` }
         ]);
     }
 

@@ -256,27 +256,36 @@ Respond naturally and contextually:`;
         
       case 'coding_help':
         // Provide intelligent help during coding
-        if (userMessage && code) {
-          const prompt = `You are a ${personality} interviewer helping during the coding phase.
+        console.log('Coding help agent - stage should be coding:', stage);
+        console.log('User message:', userMessage);
+        console.log('Has code:', !!code);
+        console.log('Has question:', !!question);
+        
+        if (userMessage) {
+          // Analyze code for context
+          const codeLines = code ? code.split('\n').length : 0;
+          const hasFunction = code ? code.includes('function') : false;
+          const hasReturn = code ? code.includes('return') : false;
+          const codeProgress = hasFunction && hasReturn ? 'making progress' : 'just starting';
+          
+          const prompt = `You are a ${personality} technical interviewer helping during the coding phase.
 
-Problem: ${question}
+${question ? `Problem: ${question}` : 'The candidate is working on a coding problem.'}
 
-Current code:
-\`\`\`javascript
-${code}
-\`\`\`
+${code ? `Current code (${codeLines} lines, ${codeProgress}):\n\`\`\`javascript\n${code}\n\`\`\`` : 'No code written yet.'}
 
 Candidate says: "${userMessage}"
 
 Your task:
-1. If they ask for help, provide hints without giving the solution
+1. If they say they're stuck or can't do it, provide gentle hints without giving the solution
 2. If they explain their code, acknowledge and encourage
-3. If they seem stuck, ask guiding questions
+3. If they seem stuck, ask guiding questions like "What have you tried so far?" or "What part is challenging?"
 4. If they ask about test cases, help them think through edge cases
-5. Be supportive and encouraging
+5. Be supportive and encouraging, especially if they're struggling
 6. Keep response under 3 sentences
+7. Reference their actual code when relevant
 
-Respond naturally:`;
+Respond naturally and helpfully:`;
 
           response = await interviewer.generateResponse([
             { role: 'system', content: prompt }
@@ -286,6 +295,75 @@ Respond naturally:`;
             { role: 'system', content: `As a ${personality} interviewer during the coding phase, check in with the candidate about their progress. Be supportive and encourage them to think out loud.` }
           ]);
         }
+        // Stay in coding stage - no transition needed
+        nextStage = null;
+        break;
+        
+      case 'coding_intervention':
+        // AI-initiated intervention during coding
+        console.log('Coding intervention triggered');
+        console.log('Intervention type:', userMessage); // userMessage is actually the intervention type
+        console.log('Current code length:', code?.length || 0);
+        
+        // Analyze code for intelligent feedback
+        let codeAnalysis = '';
+        if (code) {
+          const lines = code.split('\n');
+          const nonEmptyLines = lines.filter(l => l.trim() && !l.trim().startsWith('//')).length;
+          const hasLoop = code.includes('for') || code.includes('while');
+          const hasCondition = code.includes('if');
+          const functionCount = (code.match(/function/g) || []).length;
+          
+          if (nonEmptyLines < 5) {
+            codeAnalysis = 'The candidate has just started coding.';
+          } else if (functionCount > 0 && hasLoop) {
+            codeAnalysis = 'The candidate has made good progress with function structure and loops.';
+          } else if (functionCount > 0) {
+            codeAnalysis = 'The candidate has defined a function and is working on the logic.';
+          } else {
+            codeAnalysis = 'The candidate is exploring the problem.';
+          }
+        }
+        
+        // Generate appropriate message based on intervention type
+        const interventionType = userMessage; // The "userMessage" is actually the type
+        let interventionPrompt = '';
+        
+        switch(interventionType) {
+          case 'stuck':
+            interventionPrompt = `Generate a gentle check-in. The candidate seems stuck (no code or voice activity). Ask if they need help or want to talk through their approach. Be encouraging.`;
+            break;
+          case 'no_progress':
+            interventionPrompt = `The candidate hasn't written code for a while. Check in to see what they're thinking about. Maybe they're planning their approach.`;
+            break;
+          case 'function_complete':
+            interventionPrompt = `The candidate just completed a function. Acknowledge their progress and ask about their approach or edge cases.`;
+            break;
+          case 'periodic_checkin':
+            interventionPrompt = `Do a friendly periodic check-in. Ask how their solution is coming along.`;
+            break;
+          default:
+            interventionPrompt = `Check in on the candidate's progress. Be supportive and encouraging.`;
+        }
+        
+        const prompt = `You are a ${personality} technical interviewer. You need to proactively check in on the candidate during coding.
+
+${question ? `Problem: ${question}` : ''}
+${codeAnalysis}
+${code ? `Lines of code written: ${code.split('\n').length}` : 'No code yet'}
+
+${interventionPrompt}
+
+Keep your response brief (1-2 sentences), natural, and supportive.
+Don't be pushy - this is just a gentle check-in.
+Vary your language to avoid sounding repetitive.
+
+Your check-in:`;
+        
+        response = await interviewer.generateResponse([
+          { role: 'system', content: prompt }
+        ]);
+        nextStage = null; // Stay in coding
         break;
         
       case 'testing':

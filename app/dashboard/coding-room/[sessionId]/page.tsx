@@ -4,10 +4,17 @@ import { useState, useEffect, useRef } from "react"
 import { useUser } from "@clerk/nextjs"
 import { useRouter, useSearchParams, useParams } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
+import dynamic from 'next/dynamic'
 import { 
   Terminal, Mic, Volume2, ChevronRight, Loader2,
-  MessageSquare, Code2, Sparkles
+  MessageSquare, Code2, Sparkles, ChevronUp, ChevronDown
 } from "lucide-react"
+
+// Dynamic import Monaco to avoid SSR issues
+const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { 
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center h-full text-gray-400">Loading editor...</div>
+})
 
 // Interview stages that trigger screen changes
 type InterviewStage = 'greeting' | 'problem_introduction' | 'clarification' | 'coding' | 'testing' | 'complete'
@@ -28,10 +35,16 @@ export default function VoiceInterviewRoom() {
   const [screen, setScreen] = useState<ScreenState>('greeting')
   const stageRef = useRef<InterviewStage>('greeting') // Track current stage in ref for immediate access
   const [currentQuestion, setCurrentQuestion] = useState("")
+  const currentQuestionRef = useRef<string>("") // Track question in ref to avoid stale closures
+  const [showQuestionInCoding, setShowQuestionInCoding] = useState(true) // Show problem by default in coding
   const [code, setCode] = useState(`// Your solution here
 function solution() {
   
 }`)
+  const codeRef = useRef<string>(`// Your solution here
+function solution() {
+  
+}`) // Track code in ref for reliable access
   
   // Voice state
   const [isListening, setIsListening] = useState(false)
@@ -46,6 +59,15 @@ function solution() {
   // Use ref to always have access to latest history in callbacks
   const conversationHistoryRef = useRef<Array<{role: string, content: string}>>([])
   
+  // Stage-specific isolated histories
+  const stageHistories = useRef<Record<string, Array<{role: string, content: string}>>>({  
+    greeting: [],
+    problem_introduction: [],
+    clarification: [],
+    coding: [],
+    testing: []
+  })
+  
   // Track initialization to prevent double calls
   const [isInitialized, setIsInitialized] = useState(false)
   const initializingRef = useRef(false) // Use ref to prevent StrictMode double-init
@@ -55,6 +77,16 @@ function solution() {
   // For accumulating speech
   const accumulatedTranscriptRef = useRef<string>('')
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // Code monitoring for intelligent interventions
+  const lastCodeChangeRef = useRef<number>(Date.now())
+  const lastVoiceActivityRef = useRef<number>(Date.now())
+  const codeAnalysisTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const interventionTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const lastInterventionRef = useRef<number>(Date.now())
+  const interventionCountRef = useRef<number>(0)
+  const lastCodeRef = useRef<string>('')
+  const stuckOnLineTimerRef = useRef<NodeJS.Timeout | null>(null)
   
   // Initialize on mount
   useEffect(() => {
@@ -75,10 +107,27 @@ function solution() {
     // Map stages to screens
     if (stage === 'greeting') {
       setScreen('greeting')
+      // Clear greeting history on entry for fresh start
+      if (!stageHistories.current.greeting.length) {
+        console.log('Starting fresh greeting stage')
+      }
     } else if (stage === 'problem_introduction' || stage === 'clarification') {
       setScreen('problem')
+      // Clear problem/clarification history when entering from greeting
+      if (stage === 'problem_introduction' && !stageHistories.current.problem_introduction.length) {
+        console.log('Starting fresh problem stage - no greeting context')
+        // Optionally clear greeting history to save memory
+        stageHistories.current.greeting = []
+      }
     } else if (stage === 'coding' || stage === 'testing') {
       setScreen('coding')
+      // Clear coding history when first entering
+      if (stage === 'coding' && !stageHistories.current.coding.length) {
+        console.log('Starting fresh coding stage - no problem/clarification context')
+        // Optionally clear previous stage histories to save memory
+        stageHistories.current.problem_introduction = []
+        stageHistories.current.clarification = []
+      }
     }
     console.log('Screen updated based on stage')
     console.log('============================')
@@ -101,6 +150,7 @@ function solution() {
       const data = await response.json()
       const question = data.question || "Given an array, find two numbers that sum to a target."
       setCurrentQuestion(question)
+      currentQuestionRef.current = question // Store in ref for reliable access
       console.log('Question loaded:', question.substring(0, 50) + '...')
       
       // Initialize voice
@@ -155,6 +205,9 @@ function solution() {
         console.log('Segment:', transcript)
         console.log('Accumulated so far:', accumulatedTranscriptRef.current)
         
+        // Track voice activity for intervention system
+        lastVoiceActivityRef.current = Date.now()
+        
         // Show accumulated transcript
         setTranscript(accumulatedTranscriptRef.current)
         
@@ -186,8 +239,7 @@ function solution() {
     }
     
     speechRecognition.onend = () => {
-      setIsListening(false)
-      console.log('Voice: Listening ended')
+      console.log('Voice: Listening ended - will auto-restart')
       
       // Process any remaining accumulated text
       if (accumulatedTranscriptRef.current.trim()) {
@@ -198,13 +250,24 @@ function solution() {
         setTranscript('')
       }
       
-      // Auto restart for continuous listening
-      if (!isSpeaking && !isProcessing) {
-        setTimeout(() => {
-          console.log('Auto-restarting voice recognition...')
-          startListening()
-        }, 1000)
-      }
+      // ALWAYS restart for continuous listening - don't check conditions
+      setTimeout(() => {
+        console.log('Auto-restarting voice recognition (always on)...')
+        try {
+          speechRecognition.start()
+          setIsListening(true)
+        } catch (e) {
+          console.log('Restart failed, trying again:', e)
+          setTimeout(() => {
+            try {
+              speechRecognition.start()
+              setIsListening(true)
+            } catch (e2) {
+              console.log('Second restart attempt failed:', e2)
+            }
+          }, 500)
+        }
+      }, 200) // Quick restart for seamless listening
     }
     
     setRecognition(speechRecognition)
@@ -261,8 +324,8 @@ function solution() {
       }
       window.speechSynthesis.cancel() // Cancel any browser TTS
       
-      // Stop listening while AI speaks
-      stopListening()
+      // Don't stop listening - keep mic active for natural conversation
+      // stopListening() - REMOVED to keep mic always active
       setIsSpeaking(true)
       lastSpokenTextRef.current = text
       console.log('AI speaking:', text)
@@ -293,12 +356,11 @@ function solution() {
       
       audio.onended = () => {
         setIsSpeaking(false)
-        console.log('AI finished speaking')
+        console.log('AI finished speaking - mic still active')
         URL.revokeObjectURL(audioUrl)
         currentAudioRef.current = null
         lastSpokenTextRef.current = "" // Clear last spoken text
-        // Resume listening after AI finishes
-        setTimeout(() => startListening(), 500)
+        // Don't restart listening - it should already be running continuously
       }
       
       audio.onerror = (e) => {
@@ -324,10 +386,14 @@ function solution() {
       const utterance = new SpeechSynthesisUtterance(text)
       utterance.rate = 1.1
       
-      utterance.onstart = () => setIsSpeaking(true)
+      utterance.onstart = () => {
+        setIsSpeaking(true)
+        console.log('AI speaking (fallback TTS) - mic remains active')
+      }
       utterance.onend = () => {
         setIsSpeaking(false)
-        setTimeout(() => startListening(), 500)
+        console.log('AI finished speaking - mic still listening')
+        // Don't restart listening - it should already be running
       }
       
       window.speechSynthesis.speak(utterance)
@@ -344,16 +410,45 @@ function solution() {
     setIsProcessing(true)
     console.log(`Calling ${agentType} agent with message:`, userMessage, stageOverride ? `(stage override: ${stageOverride})` : '')
     
+    // Determine the actual stage first
+    const actualStage = stageOverride || stageRef.current || stage
+    
     try {
-      // Build conversation history for context
-      // Use the ref to get the latest history (avoids stale closure issues)
-      const history = [
-        ...conversationHistoryRef.current,
-        ...(userMessage ? [{role: 'user', content: userMessage}] : [])
-      ]
+      // COMPLETE ISOLATION - Each stage has its own separate history
+      let history = stageHistories.current[actualStage] || []
       
-      console.log('Sending history to API:', history.length, 'messages')
-      console.log('History content:', JSON.stringify(history, null, 2))
+      // Limit history per stage to prevent context overflow
+      const maxHistoryPerStage = {
+        greeting: 4,        // 2 exchanges
+        problem_introduction: 2, // 1 exchange  
+        clarification: 4,   // 2 exchanges
+        coding: 6,          // 3 exchanges
+        testing: 4          // 2 exchanges
+      }
+      
+      // Trim history if too long
+      const maxItems = maxHistoryPerStage[actualStage as keyof typeof maxHistoryPerStage] || 4
+      if (history.length > maxItems) {
+        history = history.slice(-maxItems)
+      }
+      
+      // Add current message if provided (but not for AI interventions)
+      if (userMessage && agentType !== 'coding_intervention') {
+        history = [...history, {role: 'user', content: userMessage}]
+      }
+      
+      console.log(`Sending ${actualStage} history to API:`, history.length, 'messages (ISOLATED)')
+      console.log('Stage-specific history:', JSON.stringify(history, null, 2))
+      
+      // Debug logging for stage and question
+      console.log('=== API CALL DEBUG ===')
+      console.log('Stage from state:', stage)
+      console.log('Stage from ref:', stageRef.current)
+      console.log('Stage override:', stageOverride)
+      console.log('Actual stage being sent:', actualStage)
+      console.log('Question from state:', currentQuestion ? currentQuestion.substring(0, 50) + '...' : 'NO QUESTION')
+      console.log('Question from ref:', currentQuestionRef.current ? currentQuestionRef.current.substring(0, 50) + '...' : 'NO QUESTION IN REF')
+      console.log('====================')
       
       // Call the appropriate agent endpoint
       const response = await fetch('/api/interview-agent', {
@@ -361,12 +456,12 @@ function solution() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agentType,
-          stage: stageOverride || stage,  // Use override if provided, otherwise current stage
+          stage: actualStage,  // Use ref as primary source
           sessionId,
           personality,
           userMessage,
-          code: (stageOverride || stage) === 'coding' ? code : undefined,
-          question: currentQuestion,
+          code: actualStage === 'coding' ? (codeRef.current || code) : undefined,
+          question: currentQuestionRef.current || currentQuestion, // Use ref as primary source,
           history
         })
       })
@@ -391,26 +486,44 @@ function solution() {
         return // Don't add duplicate messages
       }
       
-      const newHistory = userMessage 
+      // Don't add intervention types as user messages
+      const isIntervention = agentType === 'coding_intervention'
+      
+      // Update stage-specific history
+      const currentStageHistory = stageHistories.current[actualStage] || []
+      const newStageHistory = userMessage && !isIntervention
+        ? [...currentStageHistory, 
+           {role: 'user', content: userMessage},
+           {role: 'assistant', content: data.message}]
+        : [...currentStageHistory, 
+           {role: 'assistant', content: data.message}];
+      
+      // Update stage-specific history
+      stageHistories.current[actualStage] = newStageHistory
+      
+      // Also update global history for UI display (but stages remain isolated)
+      const newHistory = userMessage && !isIntervention
         ? [...conversationHistoryRef.current, 
            {role: 'user', content: userMessage},
            {role: 'assistant', content: data.message}]
         : [...conversationHistoryRef.current, 
            {role: 'assistant', content: data.message}];
       
-      // Update both state and ref immediately
       setConversationHistory(newHistory)
       conversationHistoryRef.current = newHistory
-      console.log('Updated history:', newHistory.length, 'items')
-      console.log('Full history:', newHistory)
+      console.log(`Updated ${actualStage} stage history:`, newStageHistory.length, 'items')
+      console.log('Stage-isolated history:', newStageHistory)
+      console.log('Global history (for UI):', newHistory.length, 'items')
       
       // NOW handle stage transitions with updated history
       if (data.nextStage) {
         console.log(`Stage transition: ${stage} → ${data.nextStage}`)
         console.log(`Updating stageRef to: ${data.nextStage}`)
+        console.log(`AgentType was: ${data.agentType}`)
         // CRITICAL: Update ref IMMEDIATELY for speech processing
         stageRef.current = data.nextStage 
         setStage(data.nextStage)
+        console.log(`Stage and ref updated. New stageRef.current: ${stageRef.current}`)
         
         // If moving to problem_introduction, announce it and ask for thoughts
         if (data.nextStage === 'problem_introduction') {
@@ -522,6 +635,7 @@ function solution() {
             lowerText.includes('begin coding') ||
             lowerText.includes("let's start") || 
             lowerText.includes("i'm ready") ||
+            lowerText.includes("i am ready") || // Handle "I am ready to code"
             lowerText.includes("want to code") || 
             lowerText.includes("start implementing") ||
             lowerText.includes("move to") && lowerText.includes("cod") || // "move to coding", "move to code"
@@ -537,6 +651,8 @@ function solution() {
         
       case 'coding':
         // Coding agent provides help during coding
+        console.log('In coding stage - processing:', text)
+        // Always stay in coding stage once we're here
         await callAgent('coding_help', text)
         break
         
@@ -545,6 +661,147 @@ function solution() {
         await callAgent('testing', text)
         break
     }
+  }
+  
+  // Code monitoring and intelligent intervention system
+  const analyzeCodeProgress = () => {
+    if (stageRef.current !== 'coding') return
+    
+    const currentTime = Date.now()
+    const timeSinceLastCode = (currentTime - lastCodeChangeRef.current) / 1000 // seconds
+    const timeSinceLastVoice = (currentTime - lastVoiceActivityRef.current) / 1000
+    const timeSinceLastIntervention = (currentTime - lastInterventionRef.current) / 1000
+    
+    console.log('Code analysis:', {
+      timeSinceLastCode,
+      timeSinceLastVoice,
+      timeSinceLastIntervention,
+      interventionCount: interventionCountRef.current
+    })
+    
+    // Much more conservative - minimum 90 seconds between interventions
+    if (timeSinceLastIntervention < 90) {
+      console.log('Too soon since last intervention, skipping')
+      return
+    }
+    
+    // Only intervene after 3+ interventions if really necessary
+    if (interventionCountRef.current >= 3 && timeSinceLastIntervention < 120) {
+      console.log('Too many interventions already, being less intrusive')
+      return
+    }
+    
+    // Very conservative intervention triggers
+    if (timeSinceLastCode > 150 && timeSinceLastVoice > 90) {
+      // User seems stuck - 2.5 minutes no code + 1.5 minutes no voice
+      console.log('Triggering stuck intervention')
+      triggerIntervention('stuck')
+    } else if (timeSinceLastCode > 180) {
+      // No code changes for 3+ minutes
+      console.log('Triggering no_progress intervention')
+      triggerIntervention('no_progress')
+    } else if (detectFunctionCompletion(codeRef.current || code)) {
+      // User just completed a function - only if 2+ minutes passed
+      if (timeSinceLastIntervention > 120) {
+        console.log('Triggering function_complete intervention')
+        triggerIntervention('function_complete')
+      }
+    }
+  }
+  
+  const detectFunctionCompletion = (currentCode: string) => {
+    // Simple heuristic: check if user just closed a function
+    const lines = currentCode.split('\n')
+    const lastNonEmptyLine = lines.filter(l => l.trim()).pop()
+    const prevCode = lastCodeRef.current
+    
+    // Check if user just added a closing brace after content
+    if (lastNonEmptyLine === '}' && prevCode && prevCode.length < currentCode.length) {
+      const funcCount = (currentCode.match(/function/g) || []).length
+      const prevFuncCount = (prevCode.match(/function/g) || []).length
+      return funcCount === prevFuncCount && currentCode.includes('return')
+    }
+    return false
+  }
+  
+  const triggerIntervention = async (type: string) => {
+    // Don't trigger if already processing or speaking
+    if (isProcessing || isSpeaking) {
+      console.log('Skipping intervention - already processing or speaking')
+      return
+    }
+    
+    console.log('Triggering intervention:', type)
+    lastInterventionRef.current = Date.now()
+    interventionCountRef.current++
+    
+    // Don't pass message as userMessage - let AI generate its own intervention
+    // Pass the intervention type instead
+    await callAgent('coding_intervention', type, 'coding')
+  }
+  
+  // Set up code monitoring when in coding stage
+  useEffect(() => {
+    if (stage === 'coding') {
+      // Reset all timestamps when entering coding stage to prevent immediate triggers
+      console.log('Entering coding stage - resetting intervention timestamps')
+      lastInterventionRef.current = Date.now()
+      lastCodeChangeRef.current = Date.now()
+      lastVoiceActivityRef.current = Date.now()
+      interventionCountRef.current = 0
+      
+      // Wait 90 seconds before starting ANY monitoring to let user get settled
+      const startMonitoringDelay = setTimeout(() => {
+        console.log('Starting code monitoring after 90s delay')
+        
+        // Check every 30 seconds for intervention opportunities (less frequent)
+        const monitoringInterval = setInterval(() => {
+          analyzeCodeProgress()
+        }, 30000) // Check every 30 seconds instead of 20
+        
+        // Store for cleanup
+        interventionTimerRef.current = monitoringInterval as any
+        
+        return () => clearInterval(monitoringInterval)
+      }, 90000) // 90 second delay before monitoring starts (was 45)
+      
+      // First check-in after 3 minutes (if no other interventions)
+      const firstCheckIn = setTimeout(() => {
+        if (stageRef.current === 'coding' && interventionCountRef.current === 0) {
+          console.log('First periodic check-in after 3 minutes')
+          triggerIntervention('periodic_checkin')
+        }
+      }, 180000) // 3 minutes (was 2.5)
+      
+      return () => {
+        clearTimeout(startMonitoringDelay)
+        clearTimeout(firstCheckIn)
+        if (interventionTimerRef.current) {
+          clearInterval(interventionTimerRef.current as any)
+        }
+      }
+    }
+  }, [stage])
+  
+  // Track code changes with debouncing
+  const handleCodeChange = (newCode: string) => {
+    setCode(newCode)
+    codeRef.current = newCode // Update ref for reliable access
+    lastCodeChangeRef.current = Date.now()
+    
+    // Clear existing timer
+    if (codeAnalysisTimerRef.current) {
+      clearTimeout(codeAnalysisTimerRef.current)
+    }
+    
+    // Debounce code analysis - analyze after 2 seconds of no typing
+    codeAnalysisTimerRef.current = setTimeout(() => {
+      if (stageRef.current === 'coding' && newCode !== lastCodeRef.current) {
+        lastCodeRef.current = newCode
+        // Could send code to AI for analysis here if needed
+        console.log('Code changed, lines:', newCode.split('\n').length)
+      }
+    }, 2000)
   }
   
   return (
@@ -722,27 +979,81 @@ function solution() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 1.05 }}
-              className="h-full flex"
+              className="h-full flex flex-col"
             >
-              {/* Code Editor */}
-              <div className="flex-1 flex flex-col">
-                <div className="border-b border-gray-800 px-4 py-2 bg-gray-900/50">
-                  <span className="text-xs font-mono text-gray-400">solution.js</span>
-                </div>
+              {/* Collapsible Problem Statement */}
+              <div className="border-b border-gray-800 bg-gray-900/50">
+                <button
+                  onClick={() => setShowQuestionInCoding(!showQuestionInCoding)}
+                  className="w-full px-4 py-2 flex items-center justify-between hover:bg-gray-900/70 transition-colors"
+                >
+                  <div className="flex items-center space-x-2">
+                    <Code2 className="h-4 w-4 text-gray-400" />
+                    <span className="text-xs font-mono text-gray-400">
+                      Problem Statement {showQuestionInCoding ? '(click to hide)' : '(click to show)'}
+                    </span>
+                  </div>
+                  {showQuestionInCoding ? 
+                    <ChevronUp className="h-3 w-3 text-gray-500" /> : 
+                    <ChevronDown className="h-3 w-3 text-gray-500" />
+                  }
+                </button>
                 
-                <textarea
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  className="flex-1 bg-gray-950 text-gray-100 font-mono text-sm p-4 resize-none focus:outline-none"
-                  style={{ lineHeight: '1.6', tabSize: 2 }}
-                  placeholder="// Start coding your solution..."
-                  spellCheck={false}
-                  autoFocus
-                />
+                {showQuestionInCoding && (
+                  <div className="px-4 pb-3 max-h-48 overflow-y-auto border-b border-gray-800">
+                    <pre className="text-xs text-gray-400 font-mono whitespace-pre-wrap bg-gray-900 rounded p-3">
+                      {currentQuestion || "Loading problem..."}
+                    </pre>
+                  </div>
+                )}
               </div>
               
-              {/* AI Assistant Panel */}
-              <div className="w-96 border-l border-gray-800 flex flex-col bg-gray-900/50">
+              {/* Main coding area */}
+              <div className="flex-1 flex">
+                {/* Code Editor */}
+                <div className="flex-1 flex flex-col">
+                  <div className="border-b border-gray-800 px-4 py-2 bg-gray-900/50">
+                    <span className="text-xs font-mono text-gray-400">solution.js</span>
+                  </div>
+                  
+                  <div className="flex-1">
+                    <MonacoEditor
+                      height="100%"
+                      language="javascript"
+                      theme="vs-dark"
+                      value={code}
+                      onChange={(value) => handleCodeChange(value || '')}
+                      options={{
+                        minimap: { enabled: false },
+                        fontSize: 14,
+                        lineHeight: 22,
+                        padding: { top: 16, bottom: 16 },
+                        scrollBeyondLastLine: false,
+                        automaticLayout: true,
+                        tabSize: 2,
+                        wordWrap: 'on',
+                        suggestOnTriggerCharacters: true,
+                        quickSuggestions: {
+                          other: true,
+                          comments: false,
+                          strings: false
+                        },
+                        parameterHints: { enabled: true },
+                        formatOnPaste: true,
+                        formatOnType: true,
+                        acceptSuggestionOnCommitCharacter: true,
+                        snippetSuggestions: 'inline',
+                        suggest: {
+                          showKeywords: true,
+                          showSnippets: true,
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+                
+                {/* AI Assistant Panel */}
+                <div className="w-96 border-l border-gray-800 flex flex-col bg-gray-900/50">
                 <div className="p-4 border-b border-gray-800">
                   <h3 className="text-sm font-mono text-gray-400 flex items-center space-x-2">
                     <MessageSquare className="h-4 w-4" />
@@ -782,6 +1093,7 @@ function solution() {
                   </p>
                 </div>
               </div>
+              </div>{/* Close Main coding area div */}
             </motion.div>
           )}
         </AnimatePresence>

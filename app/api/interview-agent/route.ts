@@ -34,7 +34,14 @@ export async function POST(req: NextRequest) {
     switch(agentType) {
       case 'greeting':
         // Generate natural, casual greeting like a real interviewer
-        const greetingPrompt = `You're a ${personality} tech interviewer starting an interview. Give a brief, casual greeting (max 5 words). Be natural and friendly.`;
+        const greetingPrompt = `You're a ${personality} tech interviewer starting an interview.
+
+Real interviewers greet like:
+- "Hey, how's it going?"
+- "Hi there, ready to start?"
+- "Hey, good to meet you"
+
+Be casual and natural. Max 7 words.`;
 
         response = await interviewer.generateResponse([
           { role: 'system', content: greetingPrompt }
@@ -54,14 +61,20 @@ export async function POST(req: NextRequest) {
             `${msg.role === 'user' ? 'Candidate' : 'You'}: ${msg.content}`
           ).join('\n');
           
-          const prompt = `You're a ${personality} tech interviewer. The candidate just responded to your greeting.
+          const prompt = `You're a ${personality} tech interviewer.
 
-Previous conversation:
+Conversation:
 ${conversationContext}
 
-Candidate said: "${userMessage}"
+Candidate: "${userMessage}"
 
-Respond naturally and briefly (max 5 words). If this is the 2nd exchange, transition to showing the problem.`;
+Real interviewers respond with:
+- "Good to hear, ready?"
+- "Great, let's get started" 
+- "Cool, here's the problem"
+- "Alright, let's dive in"
+
+Keep it casual. Max 6 words. If 2nd exchange, transition to problem.`;
 
           const aiResponse = await interviewer.generateResponse([
             { role: 'system', content: prompt }
@@ -83,14 +96,14 @@ Respond naturally and briefly (max 5 words). If this is the 2nd exchange, transi
           // Transition if user wants to start, or after 2 exchanges
           if (wantsToStart) {
             console.log('User wants to start - transitioning to problem');
-            console.log('Setting nextStage to problem_introduction');
-            nextStage = 'problem_introduction';
+            console.log('Setting nextStage to problem_discussion');
+            nextStage = 'problem_discussion';
             console.log('Will return nextStage:', nextStage);
           } else if (conversationCount >= 2) {
             console.log('2+ exchanges - transitioning to problem');
             // Let the AI's natural response play, THEN transition
             // The response should already include transition language from the prompt
-            nextStage = 'problem_introduction';
+            nextStage = 'problem_discussion';
             console.log('Will return nextStage:', nextStage);
           }
         } else {
@@ -98,145 +111,111 @@ Respond naturally and briefly (max 5 words). If this is the 2nd exchange, transi
           response = await interviewer.generateResponse([
             { role: 'system', content: `You're a ${personality} interviewer. The greeting phase needs to transition. Give a brief transition to starting the interview (max 10 words).` }
           ]);
-          nextStage = 'problem_introduction';
+          nextStage = 'problem_discussion';
         }
         break;
         
-      case 'problem_thoughts':
-        // Ask for thoughts like a real interviewer
-        const thoughtsPrompt = `You're a ${personality} interviewer. The candidate just saw the problem. Ask for their initial thoughts in 5 words or less. Be natural.`;
+      case 'problem_discussion':
+        // Single agent to handle problem presentation, clarifications, and approach discussion
+        if (!userMessage && question) {
+          // Initial problem presentation - ask for thoughts
+          const prompt = `You're a ${personality} interviewer. The candidate just saw this problem:
 
-        response = await interviewer.generateResponse([
-          { role: 'system', content: thoughtsPrompt }
-        ]);
-        break;
-        
-      case 'problem_ready':
-        // Use AI to respond naturally after they've seen the problem
-        if (userMessage) {
-          // Count how many times they've discussed in this stage
-          const discussionCount = history.filter((h: any) => h.role === 'user').length;
+"${question}"
+
+Real interviewers ask:
+- "What do you think?"
+- "Initial thoughts?"
+- "How would you approach this?"
+- "What comes to mind?"
+
+Pick one. Be neutral, not overly encouraging. Max 6 words.`;
           
-          const prompt = `You're a ${personality} interviewer. The candidate is looking at the problem.
+          response = await interviewer.generateResponse([
+            { role: 'system', content: prompt }
+          ]);
+        } else if (userMessage && question) {
+          // Handle ongoing discussion
+          const exchangeCount = history.filter((h: any) => h.role === 'user').length;
+          
+          // Analyze what the user is talking about
+          const userLower = userMessage.toLowerCase();
+          const hasApproach = userLower.includes('sliding window') ||
+                             userLower.includes('two pointer') ||
+                             userLower.includes('hash') ||
+                             userLower.includes('set') ||
+                             userLower.includes('array') ||
+                             userLower.includes('loop') ||
+                             userLower.includes('iterate') ||
+                             userLower.includes('binary') ||
+                             userLower.includes('dynamic') ||
+                             userLower.includes('recursion') ||
+                             userLower.includes('approach') ||
+                             userLower.includes('solve');
+          
+          const askingClarification = userMessage.includes('?');
+          const readyToCoding = userLower.includes('ready') || 
+                               userLower.includes('code') || 
+                               userLower.includes('implement') ||
+                               userLower.includes('start') ||
+                               userLower.includes("let's go");
+          
+          // Build context for AI
+          const recentExchanges = history.slice(-4).map((msg: any) => 
+            `${msg.role === 'user' ? 'Candidate' : 'You'}: ${msg.content}`
+          ).join('\n');
+          
+          const prompt = `You're a ${personality} interviewer in a real coding interview.
 
-Problem: ${question}
-Candidate said: "${userMessage}"
-Discussion count: ${discussionCount}
+Problem: "${question}"
 
-${discussionCount === 0 ? 'Ask about their initial thoughts' : 'Ask about their approach'}. Keep it under 10 words. Be natural, not robotic.`;
+Recent conversation:
+${recentExchanges}
+
+Candidate just said: "${userMessage}"
+
+Context:
+- Exchanges so far: ${exchangeCount}
+- Has approach: ${hasApproach}
+- Asking question: ${askingClarification}
+- Wants to code: ${readyToCoding}
+
+REAL interviewer behavior:
+- Answer clarification questions briefly (yes/no when possible)
+- If no approach yet: "What's your approach?" or "How would you solve this?"
+- If they have approach and 2+ exchanges: "Let's code" or "Show me" or "Go ahead"
+- Don't over-explain or teach
+- Be neutral, not overly friendly
+- Don't say "great idea" or "excellent approach"
+
+Max 10 words. Professional but distant.`;
 
           response = await interviewer.generateResponse([
             { role: 'system', content: prompt }
           ]);
           
-          // Transition quickly after 1-2 exchanges
-          if (discussionCount >= 1 || 
-              userMessage.toLowerCase().includes('approach') ||
-              userMessage.toLowerCase().includes('solve') ||
-              userMessage.toLowerCase().includes('implement') ||
-              response.toLowerCase().includes('approach')) {
-            nextStage = 'clarification';
-          }
-        } else {
-          response = await interviewer.generateResponse([
-            { role: 'system', content: `You're a ${personality} interviewer. Ask about their initial thoughts on the problem. Keep it under 10 words and natural.` }
-          ]);
-        }
-        break;
-        
-      case 'clarification':
-        // Use AI to handle clarification/discussion intelligently
-        if (userMessage && question) {
-          const conversationInStage = history.filter((h: any) => 
-            h.role === 'user' && history.indexOf(h) > history.findIndex((m: any) => 
-              m.content?.includes('problem') || m.content?.includes('Problem')
-            )
-          ).length;
-          
-          // Check if user mentioned an approach
-          const mentionedApproach = userMessage.toLowerCase().includes('sliding window') ||
-                                   userMessage.toLowerCase().includes('two pointer') ||
-                                   userMessage.toLowerCase().includes('hash') ||
-                                   userMessage.toLowerCase().includes('binary') ||
-                                   userMessage.toLowerCase().includes('dynamic') ||
-                                   userMessage.toLowerCase().includes('recursion') ||
-                                   userMessage.toLowerCase().includes('approach') ||
-                                   userMessage.toLowerCase().includes('solve');
-          
-          const prompt = `You're a ${personality} interviewer discussing the problem approach.
-
-Problem: ${question}
-Candidate said: "${userMessage}"
-Exchanges in this stage: ${conversationInStage}
-Mentioned approach: ${mentionedApproach}
-
-${!mentionedApproach ? 
-  'They haven\'t mentioned an approach yet. Ask about it.' :
-  conversationInStage === 0 ? 
-  'They mentioned an approach. Briefly ask about complexity or confirm understanding.' :
-  'Time to move to coding. Tell them to start coding.'}
-
-Keep response under 10 words. Be natural and conversational.`;
-
-          response = await interviewer.generateResponse([
-            { role: 'system', content: prompt }
-          ]);
-          
-          // Check if AI or user wants to move to coding
-          const lowerMessage = userMessage.toLowerCase();
+          // Let AI decide when to transition based on the conversation
           const lowerResponse = response.toLowerCase();
           
-          // SIMPLIFIED: Move to coding quickly
-          // If they mentioned an approach and had 1-2 exchanges, that's enough
-          const readyForCoding = mentionedApproach && conversationInStage >= 1;
-          
-          // Check if user wants to code
-          const wantsToCoding = 
-            lowerMessage.includes('ready to code') || 
-            lowerMessage.includes('start coding') ||
-            lowerMessage.includes("let's code") || 
-            lowerMessage.includes('begin coding') ||
-            lowerMessage.includes("want to code") ||
-            lowerMessage.includes("i'm ready");
+          // Check if the AI is suggesting to move to coding
+          const shouldTransition = 
+            lowerResponse.includes('code') ||
+            lowerResponse.includes('implement') ||
+            lowerResponse.includes("let's see") ||
+            lowerResponse.includes('go ahead') ||
+            lowerResponse.includes('show me') ||
+            readyToCoding ||
+            (hasApproach && exchangeCount >= 2) || // If approach mentioned and 2+ exchanges
+            exchangeCount >= 4; // Max 4 exchanges in problem discussion
             
-          // Move to coding quickly:
-          // 1. They want to code OR
-          // 2. They have an approach and 1+ exchange OR
-          // 3. AI suggests coding OR
-          // 4. Max 3 exchanges regardless
-          if (wantsToCoding || 
-              readyForCoding ||
-              conversationInStage >= 3 || // Max 3 exchanges
-              lowerResponse.includes("code") || 
-              lowerResponse.includes("implement") ||
-              lowerResponse.includes("let's see")) {
-            console.log('Moving to coding (keeping it brief)');
-            
-            // Summarize the approach before moving to coding
-            if (mentionedApproach && userMessage) {
-              // Extract key approach elements from the conversation
-              const approachElements = [];
-              if (userMessage.toLowerCase().includes('sliding window')) approachElements.push('sliding window');
-              if (userMessage.toLowerCase().includes('two pointer')) approachElements.push('two pointers');
-              if (userMessage.toLowerCase().includes('hash')) approachElements.push('hash map');
-              if (userMessage.toLowerCase().includes('array')) approachElements.push('array traversal');
-              if (userMessage.toLowerCase().includes('loop')) approachElements.push('iteration');
-              
-              // Build approach summary from recent messages
-              const recentMessages = history.slice(-4)
-                .filter((h: any) => h.role === 'user')
-                .map((h: any) => h.content)
-                .join(' ');
-              
-              // Store approach summary
-              console.log('Approach discussed:', recentMessages);
-            }
-            
+          if (shouldTransition) {
+            console.log('Transitioning to coding stage');
             nextStage = 'coding';
           }
         } else {
+          // Fallback - no question provided
           response = await interviewer.generateResponse([
-            { role: 'system', content: `You're a ${personality} interviewer. The candidate needs to discuss the problem. Ask for their thoughts naturally (max 10 words).` }
+            { role: 'system', content: `You're a ${personality} interviewer. Ask what they think about the problem approach (max 10 words).` }
           ]);
         }
         break;
@@ -267,7 +246,15 @@ Summarize their approach in 1-2 sentences. Focus on the algorithm/data structure
       case 'coding_start':
         // Generate transition to coding message
         response = await interviewer.generateResponse([
-          { role: 'system', content: `You're a ${personality} interviewer. Tell the candidate to start coding in 5 words or less. Be encouraging.` }
+          { role: 'system', content: `You're a ${personality} interviewer. Time to code.
+
+Real interviewers say:
+- "Go ahead"
+- "Let's see the code"
+- "Show me"
+- "You can start"
+
+Pick one. Max 4 words. Neutral tone.` }
         ]);
         nextStage = 'coding';
         break;
@@ -287,15 +274,25 @@ Summarize their approach in 1-2 sentences. Focus on the algorithm/data structure
           const hasReturn = code ? code.includes('return') : false;
           const codeProgress = hasFunction && hasReturn ? 'making progress' : 'just starting';
           
-          const prompt = `You're a ${personality} interviewer. The candidate is coding.
+          const prompt = `You're a ${personality} interviewer watching someone code.
 
-Problem: ${question}
-${approachSummary ? `Their approach: ${approachSummary}` : ''}
-Code so far: ${codeLines} lines
+Their code:
+\`\`\`
+${code || '// No code yet'}
+\`\`\`
 
 Candidate says: "${userMessage}"
 
-Respond naturally as an interviewer would. If they're stuck, offer a small hint. If they're explaining, acknowledge. Keep it under 15 words. Be supportive but not overly helpful.`;
+REAL interviewer behavior:
+- "Can you see my code?" → "Yes" or "Yep" or "I see it"
+- If explaining their logic → "Okay" or "Mhm" or "Go on"
+- If stuck → "What are you thinking?" or "Where are you stuck?"
+- If asking for help → "What have you tried?"
+- Don't point out errors unless asked
+- Don't teach or explain concepts
+- Be mostly silent, let them work
+
+1-8 words MAX. Neutral, professional.`;
 
           response = await interviewer.generateResponse([
             { role: 'system', content: prompt }
@@ -356,18 +353,17 @@ Respond naturally as an interviewer would. If they're stuck, offer a small hint.
             interventionPrompt = `EXACTLY: "How's it going?"`;
         }
         
-        const prompt = `You're a ${personality} interviewer checking on the candidate's progress.
+        const prompt = `You're a ${personality} interviewer. Time for a periodic check.
 
-${codeAnalysis}
 Intervention type: ${interventionType}
 
-Give a brief, natural check-in (max 10 words). Don't be pushy. Examples based on type:
-- stuck: Ask if they need help
-- no_progress: Check how it's going
-- function_complete: Ask about edge cases or complexity
-- periodic_checkin: Simple check-in
+REAL interviewers check-ins:
+- stuck: "How's it going?" or "All good?"
+- no_progress: "Everything okay?" or stay silent
+- function_complete: "What's the complexity?" or "Edge cases?"
+- periodic_checkin: Stay silent or "How's it going?"
 
-Be natural and supportive.`;
+Max 4 words. Often interviewers say nothing. Be distant.`;
         
         response = await interviewer.generateResponse([
           { role: 'system', content: prompt }
@@ -378,7 +374,15 @@ Be natural and supportive.`;
       case 'testing':
         // Generate testing phase response
         response = await interviewer.generateResponse([
-          { role: 'system', content: `You're a ${personality} interviewer. Time to test the code. Ask about test cases or edge cases in 10 words or less. Be specific.` }
+          { role: 'system', content: `You're a ${personality} interviewer. Testing phase.
+
+Real interviewers ask:
+- "Test it with [1,2,3]"
+- "What about empty input?"
+- "Edge cases?"
+- "Walk me through an example"
+
+Pick one. Max 6 words. Direct, no fluff.` }
         ]);
         nextStage = 'testing';
         break;
@@ -386,7 +390,15 @@ Be natural and supportive.`;
       default:
         // Generate contextual response based on current stage
         response = await interviewer.generateResponse([
-          { role: 'system', content: `You're a ${personality} interviewer. Give a brief acknowledgment or encouragement (max 5 words). Be natural.` }
+          { role: 'system', content: `You're a ${personality} interviewer.
+
+Neutral acknowledgments:
+- "Okay"
+- "Continue"
+- "Go on"
+- "Mhm"
+
+Pick one. Max 2 words.` }
         ]);
     }
 

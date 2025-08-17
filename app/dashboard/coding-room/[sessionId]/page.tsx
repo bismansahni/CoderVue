@@ -17,7 +17,7 @@ const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
 })
 
 // Interview stages that trigger screen changes
-type InterviewStage = 'greeting' | 'problem_introduction' | 'clarification' | 'coding' | 'testing' | 'complete'
+type InterviewStage = 'greeting' | 'problem_introduction' | 'problem_discussion' | 'coding' | 'testing' | 'complete'
 type ScreenState = 'greeting' | 'problem' | 'coding' | 'complete'
 
 export default function VoiceInterviewRoom() {
@@ -67,7 +67,7 @@ function solution() {
   const stageHistories = useRef<Record<string, Array<{role: string, content: string}>>>({  
     greeting: [],
     problem_introduction: [],
-    clarification: [],
+    problem_discussion: [],
     coding: [],
     testing: []
   })
@@ -115,9 +115,9 @@ function solution() {
       if (!stageHistories.current.greeting.length) {
         console.log('Starting fresh greeting stage')
       }
-    } else if (stage === 'problem_introduction' || stage === 'clarification') {
+    } else if (stage === 'problem_introduction' || stage === 'problem_discussion') {
       setScreen('problem')
-      // Clear problem/clarification history when entering from greeting
+      // Clear problem/problem_discussion history when entering from greeting
       if (stage === 'problem_introduction' && !stageHistories.current.problem_introduction.length) {
         console.log('Starting fresh problem stage - no greeting context')
         // Optionally clear greeting history to save memory
@@ -127,10 +127,10 @@ function solution() {
       setScreen('coding')
       // Clear coding history when first entering
       if (stage === 'coding' && !stageHistories.current.coding.length) {
-        console.log('Starting fresh coding stage - no problem/clarification context')
+        console.log('Starting fresh coding stage - no problem/problem_discussion context')
         // Optionally clear previous stage histories to save memory
         stageHistories.current.problem_introduction = []
-        stageHistories.current.clarification = []
+        stageHistories.current.problem_discussion = []
       }
     }
     console.log('Screen updated based on stage')
@@ -536,20 +536,20 @@ function solution() {
           console.log(`Processing delayed stage transition: ${stageRef.current} → ${nextStage}`)
           
           // If transitioning to coding, first get approach summary
-          if (nextStage === 'coding' && stageRef.current === 'clarification') {
+          if (nextStage === 'coding' && stageRef.current === 'problem_discussion') {
             console.log('Transitioning to coding - getting approach summary')
-            const clarificationHistory = stageHistories.current['clarification'] || []
-            if (clarificationHistory.length > 0) {
+            const problem_discussionHistory = stageHistories.current['problem_discussion'] || []
+            if (problem_discussionHistory.length > 0) {
               // Make API call to summarize approach
               fetch('/api/interview-agent', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   agentType: 'approach_summary',
-                  stage: 'clarification',
+                  stage: 'problem_discussion',
                   sessionId,
                   personality,
-                  history: clarificationHistory
+                  history: problem_discussionHistory
                 })
               }).then(res => res.json()).then(summaryData => {
                 approachSummaryRef.current = summaryData.message
@@ -567,16 +567,16 @@ function solution() {
           if (nextStage === 'problem_introduction' && !hasAskedForThoughtsRef.current) {
             hasAskedForThoughtsRef.current = true
             setTimeout(() => {
-              console.log('Calling problem_thoughts after transition')
+              console.log('Calling problem_discussion after transition')
               // Only call if not already speaking
               if (!isSpeakingRef.current) {
-                callAgent('problem_thoughts', null, nextStage)
+                callAgent('problem_discussion', null, nextStage)
               } else {
-                console.log('Skipping problem_thoughts - still speaking')
+                console.log('Skipping problem_discussion - still speaking')
                 // Try again later
                 setTimeout(() => {
                   if (!isSpeakingRef.current) {
-                    callAgent('problem_thoughts', null, nextStage)
+                    callAgent('problem_discussion', null, nextStage)
                   }
                 }, 2000)
               }
@@ -642,16 +642,16 @@ function solution() {
           if (nextStage === 'problem_introduction' && !hasAskedForThoughtsRef.current) {
             hasAskedForThoughtsRef.current = true
             setTimeout(() => {
-              console.log('Calling problem_thoughts after transition')
+              console.log('Calling problem_discussion after transition')
               // Only call if not already speaking
               if (!isSpeakingRef.current) {
-                callAgent('problem_thoughts', null, nextStage)
+                callAgent('problem_discussion', null, nextStage)
               } else {
-                console.log('Skipping problem_thoughts - still speaking')
+                console.log('Skipping problem_discussion - still speaking')
                 // Try again later
                 setTimeout(() => {
                   if (!isSpeakingRef.current) {
-                    callAgent('problem_thoughts', null, nextStage)
+                    callAgent('problem_discussion', null, nextStage)
                   }
                 }, 2000)
               }
@@ -692,7 +692,7 @@ function solution() {
       const maxHistoryPerStage = {
         greeting: 4,        // 2 exchanges
         problem_introduction: 2, // 1 exchange  
-        clarification: 4,   // 2 exchanges
+        problem_discussion: 4,   // 2 exchanges
         coding: 6,          // 3 exchanges
         testing: 4          // 2 exchanges
       }
@@ -865,43 +865,17 @@ function solution() {
         break
         
       case 'problem_introduction':
-        // Problem agent handles any response when viewing problem
+        // Problem discussion agent handles all problem-related discussion
         console.log('Problem introduction stage - processing response')
-        
-        // Check if they want to jump to coding
-        if (lowerText.includes('ready to code') || 
-            lowerText.includes('start coding') ||
-            lowerText.includes("let's code")) {
-          await callAgent('coding_start', text)
-        } else {
-          // Move to clarification/discussion
-          await callAgent('problem_ready', text)
-        }
+        // Always use problem_discussion agent
+        await callAgent('problem_discussion', text)
         break
         
-      case 'clarification':
-        // Clarification agent handles questions and approach discussion
-        console.log('Clarification stage - processing:', text)
-        
-        // Check if user wants to start coding - be more flexible with matching
-        if (lowerText.includes('ready to code') || 
-            lowerText.includes('start coding') ||
-            lowerText.includes("let's code") || 
-            lowerText.includes('begin coding') ||
-            lowerText.includes("let's start") || 
-            lowerText.includes("i'm ready") ||
-            lowerText.includes("i am ready") || // Handle "I am ready to code"
-            lowerText.includes("want to code") || 
-            lowerText.includes("start implementing") ||
-            lowerText.includes("move to") && lowerText.includes("cod") || // "move to coding", "move to code"
-            lowerText.includes("open") && lowerText.includes("editor") || // "open editor", "open the editor"
-            lowerText.includes("let's") && lowerText.includes("cod")) { // "let's move to coding", "let's start coding"
-          console.log('User wants to start coding - calling coding_start agent')
-          await callAgent('coding_start', text)
-        } else {
-          // Handle clarification questions or approach discussion
-          await callAgent('clarification', text)
-        }
+      case 'problem_discussion':
+        // Problem discussion agent handles questions and approach discussion
+        console.log('Problem discussion stage - processing:', text)
+        // Let the agent handle all discussion and transition logic
+        await callAgent('problem_discussion', text)
         break
         
       case 'coding':

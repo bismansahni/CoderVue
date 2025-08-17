@@ -274,6 +274,16 @@ Pick one. Max 4 words. Neutral tone.` }
           const hasReturn = code ? code.includes('return') : false;
           const codeProgress = hasFunction && hasReturn ? 'making progress' : 'just starting';
           
+          // Analyze if code looks complete
+          const codeComplete = code && 
+                              code.includes('return') && 
+                              (code.includes('function') || code.includes('def')) &&
+                              code.split('\n').length > 5;
+          
+          const userSaysDone = userMessage.toLowerCase().includes('done') || 
+                              userMessage.toLowerCase().includes('finished') ||
+                              userMessage.toLowerCase().includes('complete');
+          
           const prompt = `You're a ${personality} interviewer in the CODING stage. The candidate is implementing their solution.
 
 Their code:
@@ -283,6 +293,8 @@ ${code || '// No code yet'}
 
 Candidate says: "${userMessage}"
 ${approachSummary ? `\nNote: They already discussed their approach: "${approachSummary}"` : ''}
+Code appears complete: ${codeComplete}
+User says they're done: ${userSaysDone}
 
 CRITICAL: You're in CODING stage, NOT problem discussion. They already have an approach.
 
@@ -291,7 +303,7 @@ REAL interviewer responses:
 - "Is this correct?" → "Walk me through it" or "Test it"
 - If explaining → "Mhm" or "Go on"
 - If stuck → "What's the issue?"
-- "I'm done" → "Test it" or "What's the complexity?"
+- If they say "I'm done" OR code looks complete → "Let's test it" or "Run it with some examples"
 - NEVER ask about approach again - they're already coding!
 
 1-5 words MAX. Let them code.`;
@@ -299,13 +311,21 @@ REAL interviewer responses:
           response = await interviewer.generateResponse([
             { role: 'system', content: prompt }
           ]);
+          
+          // Check if we should transition to testing
+          const lowerResponse = response.toLowerCase();
+          if ((codeComplete && userSaysDone) || 
+              lowerResponse.includes('test') || 
+              lowerResponse.includes('run')) {
+            console.log('Code complete - transitioning to testing');
+            nextStage = 'run_tests'; // Special stage to show run button
+          }
         } else {
           response = await interviewer.generateResponse([
             { role: 'system', content: `You're a ${personality} interviewer. Check on the candidate's coding progress naturally (max 10 words).` }
           ]);
         }
-        // Stay in coding stage - no transition needed
-        nextStage = null;
+        // Stay in coding stage unless transitioning to tests
         break;
         
       case 'coding_intervention':
@@ -375,8 +395,20 @@ Max 4 words. Often interviewers say nothing. Be distant.`;
         
       case 'testing':
         // Generate testing phase response
-        response = await interviewer.generateResponse([
-          { role: 'system', content: `You're a ${personality} interviewer. Testing phase.
+        if (userMessage && userMessage.includes('Running tests')) {
+          response = await interviewer.generateResponse([
+            { role: 'system', content: `You're a ${personality} interviewer. The candidate is running tests.
+
+Say ONE of:
+- "Let's see what happens"
+- "Running your solution"
+- "Testing now"
+
+Max 4 words.` }
+          ]);
+        } else {
+          response = await interviewer.generateResponse([
+            { role: 'system', content: `You're a ${personality} interviewer. Testing phase.
 
 Real interviewers ask:
 - "Test it with [1,2,3]"
@@ -385,8 +417,9 @@ Real interviewers ask:
 - "Walk me through an example"
 
 Pick one. Max 6 words. Direct, no fluff.` }
-        ]);
-        nextStage = 'testing';
+          ]);
+        }
+        nextStage = null; // Stay in testing
         break;
         
       default:

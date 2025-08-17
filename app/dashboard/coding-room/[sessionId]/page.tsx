@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import dynamic from 'next/dynamic'
 import { 
   Terminal, Mic, Volume2, ChevronRight, Loader2,
-  MessageSquare, Code2, Sparkles, ChevronUp, ChevronDown
+  MessageSquare, Code2, Sparkles, ChevronUp, ChevronDown, Play
 } from "lucide-react"
 
 // Dynamic import Monaco to avoid SSR issues
@@ -17,7 +17,7 @@ const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
 })
 
 // Interview stages that trigger screen changes
-type InterviewStage = 'greeting' | 'problem_introduction' | 'problem_discussion' | 'coding' | 'testing' | 'complete'
+type InterviewStage = 'greeting' | 'problem_introduction' | 'problem_discussion' | 'coding' | 'run_tests' | 'testing' | 'complete'
 type ScreenState = 'greeting' | 'problem' | 'coding' | 'complete'
 
 export default function VoiceInterviewRoom() {
@@ -47,6 +47,7 @@ function solution() {
 }`) // Track code in ref for reliable access
   const pendingStageTransitionRef = useRef<string | null>(null) // Store pending stage transitions
   const approachSummaryRef = useRef<string>('') // Store the discussed approach
+  const [showRunButton, setShowRunButton] = useState(false) // Show run tests button
   
   // Voice state
   const [isListening, setIsListening] = useState(false)
@@ -123,7 +124,7 @@ function solution() {
         // Optionally clear greeting history to save memory
         stageHistories.current.greeting = []
       }
-    } else if (stage === 'coding' || stage === 'testing') {
+    } else if (stage === 'coding' || stage === 'run_tests' || stage === 'testing') {
       setScreen('coding')
       // Clear coding history when first entering
       if (stage === 'coding' && !stageHistories.current.coding.length) {
@@ -131,6 +132,10 @@ function solution() {
         // Optionally clear previous stage histories to save memory
         stageHistories.current.problem_introduction = []
         stageHistories.current.problem_discussion = []
+      }
+      // Show run button when in run_tests stage
+      if (stage === 'run_tests') {
+        setShowRunButton(true)
       }
     }
     console.log('Screen updated based on stage')
@@ -1007,6 +1012,19 @@ function solution() {
     }
   }, [stage])
   
+  // Run tests function
+  const runTests = async () => {
+    console.log('Running tests with code:', codeRef.current)
+    setStage('testing')
+    stageRef.current = 'testing'
+    
+    // Call the testing agent
+    await callAgent('testing', 'Running tests on the code')
+    
+    // TODO: Actually execute the code against test cases
+    // For now, just transition to testing stage
+  }
+  
   // Track code changes with debouncing
   const handleCodeChange = (newCode: string) => {
     setCode(newCode)
@@ -1269,7 +1287,7 @@ function solution() {
                         formatOnPaste: true,
                         formatOnType: true,
                         acceptSuggestionOnCommitCharacter: true,
-                        acceptSuggestionOnTab: false,  // Allow tab to insert tabs
+                        acceptSuggestionOnEnter: 'on',  // Accept suggestions with Enter
                         snippetSuggestions: 'inline',
                         suggest: {
                           showKeywords: true,
@@ -1312,6 +1330,24 @@ function solution() {
                   {isProcessing && (
                     <div className="flex items-center justify-center p-4">
                       <Loader2 className="h-6 w-6 text-yellow-400 animate-spin" />
+                    </div>
+                  )}
+                  
+                  {/* Run Tests Button */}
+                  {showRunButton && (
+                    <div className="mt-4 p-4 bg-gray-800 rounded-lg">
+                      <p className="text-sm text-gray-300 mb-3">Ready to test your solution?</p>
+                      <button
+                        onClick={async () => {
+                          setShowRunButton(false)
+                          // Execute tests
+                          await runTests()
+                        }}
+                        className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center justify-center space-x-2"
+                      >
+                        <Play className="h-4 w-4" />
+                        <span>Run Tests</span>
+                      </button>
                     </div>
                   )}
                 </div>

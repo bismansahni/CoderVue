@@ -27,7 +27,7 @@ export default function InterviewDetails() {
                 .map((line: string): TranscriptionItem | null => {
                     try {
                         return JSON.parse(line);
-                    } catch (e) {
+                    } catch {
                         return null;
                     }
                 })

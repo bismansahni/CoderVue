@@ -4,15 +4,13 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  Terminal, ChevronRight, Zap, Lock, Unlock, 
-  CheckCircle, Circle, ArrowRight, Sparkles,
-  Play, Code2, Brain, Timer, TrendingUp
+  Terminal, ChevronRight, Lock, 
+  CheckCircle, Code2, Brain, TrendingUp
 } from 'lucide-react'
 
 export default function Home() {
   const router = useRouter()
   const [terminalText, setTerminalText] = useState('')
-  const [currentStep, setCurrentStep] = useState(0)
   const [showDemo, setShowDemo] = useState(false)
 
   // Typewriter effect for terminal
@@ -34,7 +32,7 @@ Ready to practice? (y/n): _`
       }
     }, 30)
     return () => clearInterval(timer)
-  }, [])
+  }, [fullText])
 
   // Skill progression demo
   const skills = [
@@ -131,7 +129,7 @@ Ready to practice? (y/n): _`
           >
             <div className="max-w-4xl mx-auto">
               <div className="bg-gray-900 rounded-lg border border-gray-800 p-8">
-                <h3 className="font-mono text-sm text-gray-400 mb-6">// Interview Flow</h3>
+                <h3 className="font-mono text-sm text-gray-400 mb-6">{"// Interview Flow"}</h3>
                 <div className="space-y-4">
                   {interviewFlow.map((item, index) => (
                     <motion.div
@@ -170,7 +168,7 @@ Ready to practice? (y/n): _`
       {/* How It Works - Minimal */}
       <section className="py-20 px-6 border-t border-gray-800">
         <div className="max-w-4xl mx-auto">
-          <h2 className="font-mono text-sm text-gray-400 mb-12">// How It Works</h2>
+          <h2 className="font-mono text-sm text-gray-400 mb-12">{"// How It Works"}</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="group">
               <div className="bg-gray-900 rounded-lg p-6 border border-gray-800 group-hover:border-gray-700 transition-colors">
@@ -206,7 +204,7 @@ Ready to practice? (y/n): _`
       {/* Skill Tree Preview */}
       <section className="py-20 px-6 border-t border-gray-800">
         <div className="max-w-4xl mx-auto">
-          <h2 className="font-mono text-sm text-gray-400 mb-12">// Your Journey</h2>
+          <h2 className="font-mono text-sm text-gray-400 mb-12">{"// Your Journey"}</h2>
           <div className="bg-gray-900 rounded-lg border border-gray-800 p-8">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               {skills.map((skill, index) => (

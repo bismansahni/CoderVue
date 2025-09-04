@@ -6,7 +6,7 @@ export async function POST(req: NextRequest) {
     const { 
       agentType, 
       stage, 
-      sessionId, 
+ 
       personality = 'friendly',
       userMessage,
       code,
@@ -269,10 +269,6 @@ Pick one. Max 4 words. Neutral tone.` }
         
         if (userMessage) {
           // Analyze code for context
-          const codeLines = code ? code.split('\n').length : 0;
-          const hasFunction = code ? code.includes('function') : false;
-          const hasReturn = code ? code.includes('return') : false;
-          const codeProgress = hasFunction && hasReturn ? 'making progress' : 'just starting';
           
           // Analyze if code looks complete
           const codeComplete = code && 
@@ -334,46 +330,9 @@ REAL interviewer responses:
         console.log('Intervention type:', userMessage); // userMessage is actually the intervention type
         console.log('Current code length:', code?.length || 0);
         
-        // Analyze code for intelligent feedback
-        let codeAnalysis = '';
-        if (code) {
-          const lines = code.split('\n');
-          const nonEmptyLines = lines.filter(l => l.trim() && !l.trim().startsWith('//')).length;
-          const hasLoop = code.includes('for') || code.includes('while');
-          const hasCondition = code.includes('if');
-          const functionCount = (code.match(/function/g) || []).length;
-          
-          if (nonEmptyLines < 5) {
-            codeAnalysis = 'The candidate has just started coding.';
-          } else if (functionCount > 0 && hasLoop) {
-            codeAnalysis = 'The candidate has made good progress with function structure and loops.';
-          } else if (functionCount > 0) {
-            codeAnalysis = 'The candidate has defined a function and is working on the logic.';
-          } else {
-            codeAnalysis = 'The candidate is exploring the problem.';
-          }
-        }
         
         // Generate appropriate message based on intervention type
         const interventionType = userMessage; // The "userMessage" is actually the type
-        let interventionPrompt = '';
-        
-        switch(interventionType) {
-          case 'stuck':
-            interventionPrompt = `EXACTLY ONE OF: "What's the issue?" or "Where are you stuck?"`;
-            break;
-          case 'no_progress':
-            interventionPrompt = `EXACTLY ONE OF: "How's it going?" or "Need help?"`;
-            break;
-          case 'function_complete':
-            interventionPrompt = `EXACTLY ONE OF: "What's the runtime?" or "Edge cases?"`;
-            break;
-          case 'periodic_checkin':
-            interventionPrompt = `EXACTLY ONE OF: "How's it going?" or "All good?"`;
-            break;
-          default:
-            interventionPrompt = `EXACTLY: "How's it going?"`;
-        }
         
         const prompt = `You're a ${personality} interviewer. Time for a periodic check.
 
@@ -431,7 +390,7 @@ Max 15 words. Be helpful but don't solve it for them.`;
               // Generic feedback if no specific failure data
               response = `${passed} of ${total} passed. Check your logic.`;
             }
-          } catch (e) {
+          } catch {
             // Fallback if parsing fails
             response = "Some tests failed. Review your approach.";
           }

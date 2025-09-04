@@ -75,7 +75,8 @@ class SessionStore {
 
   private cleanup(): void {
     const now = new Date();
-    for (const [sessionId, session] of this.sessions.entries()) {
+    const entries = Array.from(this.sessions.entries());
+    for (const [sessionId, session] of entries) {
       if (now.getTime() - session.lastAccessed.getTime() > this.maxAge) {
         this.sessions.delete(sessionId);
       }

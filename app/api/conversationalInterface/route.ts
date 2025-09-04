@@ -2,10 +2,6 @@ import sessionStore from "@/lib/session-store";
 import { AIInterviewer } from "@/lib/openai";
 import { NextRequest, NextResponse } from "next/server";
 
-interface SessionEntry {
-    role: 'system' | 'user' | 'assistant';
-    content: string;
-}
 
 // Export the POST handler for Next.js API route with streaming support
 export async function POST(req: NextRequest): Promise<Response> {
@@ -28,7 +24,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         const interviewer = new AIInterviewer(personality as keyof typeof import("@/lib/openai").INTERVIEWER_PERSONALITIES);
 
         // Get the current session history or initialize it
-        let history = sessionStore.get(sessionId);
+        const history = sessionStore.get(sessionId);
 
         // If codingQuestion is provided and it's the first interaction, set up the system prompt
         if (codingQuestion && history.length === 0) {

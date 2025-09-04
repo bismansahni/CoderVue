@@ -79,7 +79,6 @@ export default function CodeEditor({
                             formatOnPaste: true,
                             formatOnType: true,
                             automaticLayout: true,
-                            acceptSuggestionOnTab: false,  // Allow tab to insert tabs
                             tabCompletion: 'off'  // Disable tab completion
                         }}
                     />

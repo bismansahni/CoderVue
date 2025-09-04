@@ -1,13 +1,13 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Terminal, Play, Lock, Unlock, ChevronRight, 
-  Zap, Target, TrendingUp, Award, GitBranch,
-  Code2, Brain, Timer, CheckCircle, Circle,
-  Gauge, Activity, Star, Flame
+  Award,
+  Code2, Timer, 
+  Flame
 } from 'lucide-react'
 import { UserButton, useUser } from "@clerk/nextjs"
 import { v4 as uuidv4 } from 'uuid'
@@ -46,8 +46,6 @@ const skillTree = {
 export default function TodayView() {
   const { user } = useUser()
   const router = useRouter()
-  const [streak, setStreak] = useState(0)
-  const [todayComplete, setTodayComplete] = useState(false)
   const [selectedDifficulty, setSelectedDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium')
   const [selectedPersonality, setSelectedPersonality] = useState('friendly')
   const [currentView, setCurrentView] = useState<'today' | 'skills' | 'history'>('today')
@@ -58,7 +56,7 @@ export default function TodayView() {
     skill: 'Arrays',
     topic: 'Two Pointers',
     estimatedTime: 45,
-    difficulty: 'medium' as const,
+    difficulty: 'medium' as 'easy' | 'medium' | 'hard',
     description: 'Master the two-pointer technique for array problems'
   }
 
@@ -156,9 +154,7 @@ export default function TodayView() {
                 Welcome back, {user?.firstName || 'developer'}
               </h1>
               <p className="text-gray-400 text-sm">
-                {todayComplete 
-                  ? "Great job today! Feel free to practice more or review your progress."
-                  : "Ready for today's challenge? Let's build on yesterday's progress."}
+                Ready for today's challenge? Let's build on yesterday's progress.
               </p>
             </div>
 

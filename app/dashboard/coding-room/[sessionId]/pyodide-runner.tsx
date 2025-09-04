@@ -10,9 +10,6 @@ declare global {
   }
 }
 
-interface PyodideRunnerProps {
-  onReady: (runner: PyodideRunner) => void
-}
 
 export class PyodideRunner {
   private pyodide: any = null

@@ -3,7 +3,7 @@ import { AIInterviewer } from "@/lib/openai";
 
 export async function POST(req: NextRequest) {
   try {
-    const { code, question, sessionId } = await req.json();
+    const { code, question } = await req.json();
     
     if (!code || !question) {
       return NextResponse.json(
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       analysis,
       needsIntervention,
-      suggestions: getSuggestions(code, analysis)
+      suggestions: getSuggestions(code)
     });
     
   } catch (error) {
@@ -47,7 +47,7 @@ function checkIfInterventionNeeded(code: string, analysis: string): boolean {
   return issues.some(issue => issue === true);
 }
 
-function getSuggestions(code: string, analysis: string): string[] {
+function getSuggestions(code: string): string[] {
   const suggestions = [];
   
   // Check for missing edge cases

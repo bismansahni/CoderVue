@@ -6,7 +6,7 @@ import { useRouter, useSearchParams, useParams } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import dynamic from 'next/dynamic'
 import { 
-  Terminal, Mic, Volume2, ChevronRight, Loader2,
+  Terminal, Mic, Volume2, Loader2,
   MessageSquare, Code2, Sparkles, ChevronUp, ChevronDown, Play
 } from "lucide-react"
 import { usePyodide } from './pyodide-runner'
@@ -30,7 +30,7 @@ declare global {
 type ScreenState = 'greeting' | 'problem' | 'coding' | 'complete'
 
 export default function VoiceInterviewRoom() {
-  const { user } = useUser()
+  const { } = useUser()
   const router = useRouter()
   const searchParams = useSearchParams()
   const params = useParams()
@@ -40,7 +40,7 @@ export default function VoiceInterviewRoom() {
   const difficulty = searchParams.get("difficulty") || "medium"
   
   // Initialize Pyodide for Python execution
-  const { runner: pyodideRunner, loading: pyodideLoading, error: pyodideError } = usePyodide()
+  const { runner: pyodideRunner, loading: pyodideLoading } = usePyodide()
   
   // Core state
   const [stage, setStage] = useState<InterviewStage>('greeting')
@@ -76,10 +76,9 @@ function solution() {
   const [aiMessage, setAiMessage] = useState("")
   const [recognition, setRecognition] = useState<any>(null)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [audioLevel, setAudioLevel] = useState(0) // Visual feedback for mic input
   
   // Session history for context
-  const [conversationHistory, setConversationHistory] = useState<Array<{role: string, content: string}>>([])
+  const [, setConversationHistory] = useState<Array<{role: string, content: string}>>([])
   // Use ref to always have access to latest history in callbacks
   const conversationHistoryRef = useRef<Array<{role: string, content: string}>>([])
   
@@ -110,7 +109,6 @@ function solution() {
   const lastInterventionRef = useRef<number>(Date.now())
   const interventionCountRef = useRef<number>(0)
   const lastCodeRef = useRef<string>('')
-  const stuckOnLineTimerRef = useRef<NodeJS.Timeout | null>(null)
   
   // Initialize on mount
   useEffect(() => {
@@ -119,7 +117,7 @@ function solution() {
       setIsInitialized(true)
       initializeInterview()
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   
   // Handle stage changes to update screen
   useEffect(() => {
@@ -297,8 +295,8 @@ function solution() {
             try {
               recognition.start()
               console.log('Restarted recognition after final result')
-            } catch (e) {
-              console.log('Recognition already started:', e)
+            } catch {
+              console.log('Recognition already started')
             }
           }
         }, 100)
@@ -322,8 +320,8 @@ function solution() {
             if (recognition && !isSpeaking) {
               try {
                 recognition.start()
-              } catch (e) {
-                console.log('Failed to restart after no-speech:', e)
+              } catch {
+                console.log('Failed to restart after no-speech')
               }
             }
           }, 100)
@@ -379,7 +377,7 @@ function solution() {
             if (e.message && e.message.includes('already started')) {
               console.log('Recognition already running')
             } else {
-              console.log('Restart failed, retrying:', e.message)
+              console.log('Restart failed, retrying')
               // Retry once more after a short delay
               setTimeout(() => {
                 try {
@@ -410,7 +408,6 @@ function solution() {
           autoGainControl: true,       // Normalize volume levels
           sampleRate: 44100,          // High quality sample rate
           channelCount: 1,            // Mono is sufficient for speech
-          latency: 0,                 // Request low latency
           sampleSize: 16              // 16-bit audio depth
         }
       })
@@ -434,7 +431,6 @@ function solution() {
         
         // Update audio level for UI (normalized 0-100)
         const normalizedLevel = Math.min(100, Math.round((average / 128) * 100))
-        setAudioLevel(normalizedLevel)
         
         if (average > 20) { // Log significant audio
           console.log('Audio level:', Math.round(average), 'Normalized:', normalizedLevel)
@@ -464,7 +460,7 @@ function solution() {
           console.log('Recognition already active')
           setIsListening(true)
         } else {
-          console.error('Failed to start recognition:', e)
+          console.error('Failed to start recognition')
           // Retry after a short delay
           setTimeout(() => {
             try {
@@ -489,7 +485,7 @@ function solution() {
       try {
         recognition.stop()
         console.log('Stopped listening')
-      } catch (e) {
+      } catch {
         console.log('Error stopping recognition')
       }
     }
@@ -596,7 +592,7 @@ function solution() {
             }
           }
           
-          stageRef.current = nextStage
+          stageRef.current = nextStage as InterviewStage
           setStage(nextStage as InterviewStage)
           
           // Handle specific stage transitions
@@ -628,8 +624,8 @@ function solution() {
         }, 100)
       }
       
-      audio.onerror = (e) => {
-        console.error('Audio playback error:', e)
+      audio.onerror = () => {
+        console.error('Audio playback error')
         setIsSpeaking(false)
         isSpeakingRef.current = false
         currentAudioRef.current = null
@@ -671,7 +667,7 @@ function solution() {
         if (pendingStageTransitionRef.current) {
           const nextStage = pendingStageTransitionRef.current
           console.log(`Processing delayed stage transition: ${stageRef.current} → ${nextStage}`)
-          stageRef.current = nextStage
+          stageRef.current = nextStage as InterviewStage
           setStage(nextStage as InterviewStage)
           
           // Handle specific stage transitions
@@ -1031,17 +1027,15 @@ function solution() {
       }, 300000) // 5 minute delay before monitoring starts
       
       // NO first check-in - it's annoying
-      const firstCheckIn = null
       
       return () => {
         clearTimeout(startMonitoringDelay)
-        clearTimeout(firstCheckIn)
         if (interventionTimerRef.current) {
           clearInterval(interventionTimerRef.current as any)
         }
       }
     }
-  }, [stage])
+  }, [stage]) // eslint-disable-line react-hooks/exhaustive-deps
   
   // Run tests function
   const runTests = async () => {
@@ -1131,7 +1125,7 @@ function solution() {
           console.error('Pyodide execution error:', pyError)
           setTestResults({
             error: true,
-            message: `Python execution error: ${pyError.message || pyError}`,
+            message: `Python execution error: ${(pyError as any).message || pyError}`,
             summary: { total: testCasesRef.current.length, passed: 0, failed: testCasesRef.current.length, allPassed: false }
           })
         }

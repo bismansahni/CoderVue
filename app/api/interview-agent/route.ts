@@ -40,8 +40,15 @@ Real interviewers greet like:
 - "Hey, how's it going?"
 - "Hi there, ready to start?"
 - "Hey, good to meet you"
+- "Hello! Welcome to the interview"
+- "Hi! Thanks for joining today"
+- "Hey there, how are you?"
+- "Good to see you, ready?"
+- "Hi, excited to chat today"
+- "Hello, hope you're doing well"
+- "Hey! Let's get started, shall we?"
 
-Be casual and natural. Max 7 words.`;
+Pick randomly. Be casual and natural. Max 7 words.`;
 
         response = await interviewer.generateResponse([
           { role: 'system', content: greetingPrompt }
@@ -70,9 +77,15 @@ Candidate: "${userMessage}"
 
 Real interviewers respond with:
 - "Good to hear, ready?"
-- "Great, let's get started" 
+- "Great, let's get started"
 - "Cool, here's the problem"
 - "Alright, let's dive in"
+- "Perfect, shall we begin?"
+- "Awesome, time to code"
+- "Nice! Let's jump in"
+- "Sounds good, let's go"
+- "Excellent, here we go"
+- "Got it, moving on"
 
 Keep it casual. Max 6 words. If 2nd exchange, transition to problem.`;
 
@@ -128,8 +141,16 @@ Real interviewers ask:
 - "Initial thoughts?"
 - "How would you approach this?"
 - "What comes to mind?"
+- "Any questions before we start?"
+- "Take your time, any ideas?"
+- "What's your first instinct?"
+- "How would you tackle this?"
+- "What's your approach here?"
+- "Need any clarifications?"
+- "Make sense so far?"
+- "What's the plan?"
 
-Pick one. Be neutral, not overly encouraging. Max 6 words.`;
+Pick randomly. Be neutral, not overly encouraging. Max 6 words.`;
           
           response = await interviewer.generateResponse([
             { role: 'system', content: prompt }
@@ -140,18 +161,18 @@ Pick one. Be neutral, not overly encouraging. Max 6 words.`;
           
           // Analyze what the user is talking about
           const userLower = userMessage.toLowerCase();
-          const hasApproach = userLower.includes('sliding window') ||
-                             userLower.includes('two pointer') ||
-                             userLower.includes('hash') ||
-                             userLower.includes('set') ||
-                             userLower.includes('array') ||
-                             userLower.includes('loop') ||
-                             userLower.includes('iterate') ||
-                             userLower.includes('binary') ||
-                             userLower.includes('dynamic') ||
-                             userLower.includes('recursion') ||
-                             userLower.includes('approach') ||
-                             userLower.includes('solve');
+          // More sophisticated approach detection
+          const approachPatterns = [
+            /\b(sliding\s+window|two\s+pointer|hash\s*(?:map|table|set)?)\b/i,
+            /\b(binary\s+search|dynamic\s+programming|dp|recursion|recursive)\b/i,
+            /\b(breadth\s+first|depth\s+first|bfs|dfs|graph|tree)\b/i,
+            /\b(greedy|backtrack|divide\s+and\s+conquer)\b/i,
+            /\b(my\s+approach|I(?:'ll|\s+would)\s+(?:use|try|solve)|solution\s+(?:is|would))\b/i,
+            /\b(iterate|loop|traverse|scan|process)\b/i,
+            /\b(time\s+complexity|space\s+complexity|O\([^)]+\))\b/i
+          ];
+          
+          const hasApproach = approachPatterns.some(pattern => pattern.test(userMessage));
           
           const askingClarification = userMessage.includes('?');
           const readyToCoding = userLower.includes('ready') || 
@@ -253,8 +274,14 @@ Real interviewers say:
 - "Let's see the code"
 - "Show me"
 - "You can start"
+- "Start coding"
+- "Time to implement"
+- "Write it out"
+- "Let's code it"
+- "Go for it"
+- "Show me your solution"
 
-Pick one. Max 4 words. Neutral tone.` }
+Pick randomly. Max 4 words. Neutral tone.` }
         ]);
         nextStage = 'coding';
         break;
@@ -270,11 +297,14 @@ Pick one. Max 4 words. Neutral tone.` }
         if (userMessage) {
           // Analyze code for context
           
-          // Analyze if code looks complete
-          const codeComplete = code && 
-                              code.includes('return') && 
-                              (code.includes('function') || code.includes('def')) &&
-                              code.split('\n').length > 5;
+          // Analyze if code looks complete - be more strict
+          const hasSubstantialCode = code && code.trim().length > 100;
+          const hasFunction = code && (code.includes('function') || code.includes('def') || code.includes('=>'));
+          const hasReturn = code && code.includes('return');
+          const hasLogic = code && (code.includes('for') || code.includes('while') || code.includes('if'));
+          const codeLines = code ? code.split('\n').filter(line => line.trim() && !line.trim().startsWith('//') && !line.trim().startsWith('#')).length : 0;
+          
+          const codeComplete = hasSubstantialCode && hasFunction && hasReturn && hasLogic && codeLines > 8;
           
           const userSaysDone = userMessage.toLowerCase().includes('done') || 
                               userMessage.toLowerCase().includes('finished') ||
@@ -299,7 +329,7 @@ REAL interviewer responses:
 - "Is this correct?" → "Walk me through it" or "Test it"
 - If explaining → "Mhm" or "Go on"
 - If stuck → "What's the issue?"
-- If they say "I'm done" OR code looks complete → "Let's test it" or "Run it with some examples"
+- If they say "I'm done" AND code looks complete → "Let's test it" or "Run it with some examples"
 - NEVER ask about approach again - they're already coding!
 
 1-5 words MAX. Let them code.`;

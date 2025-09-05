@@ -82,6 +82,15 @@ function solution() {
   // Use ref to always have access to latest history in callbacks
   const conversationHistoryRef = useRef<Array<{role: string, content: string}>>([])
   
+  // Stage transition debouncing
+  const stageTransitionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const transitioningToStageRef = useRef<string | null>(null)
+  
+  // Speech deduplication
+  const lastProcessedSpeechRef = useRef<string>('')
+  const speechProcessingRef = useRef<boolean>(false)
+  const speechProcessingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
   // Stage-specific isolated histories
   const stageHistories = useRef<Record<string, Array<{role: string, content: string}>>>({  
     greeting: [],
@@ -109,6 +118,7 @@ function solution() {
   const lastInterventionRef = useRef<number>(Date.now())
   const interventionCountRef = useRef<number>(0)
   const lastCodeRef = useRef<string>('')
+  const codeHistoryRef = useRef<{ timestamp: number; linesChanged: number }[]>([])
   
   // Initialize on mount
   useEffect(() => {
@@ -118,6 +128,32 @@ function solution() {
       initializeInterview()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  
+  // Debounced stage transition function
+  const transitionToStage = (newStage: InterviewStage) => {
+    // Skip if already transitioning to this stage
+    if (transitioningToStageRef.current === newStage) {
+      console.log(`Already transitioning to ${newStage}, skipping`)
+      return
+    }
+    
+    // Clear any pending transition
+    if (stageTransitionTimeoutRef.current) {
+      console.log(`Cancelling pending transition to ${transitioningToStageRef.current}`)
+      clearTimeout(stageTransitionTimeoutRef.current)
+    }
+    
+    // Mark as transitioning
+    transitioningToStageRef.current = newStage
+    
+    // Debounce the actual transition
+    stageTransitionTimeoutRef.current = setTimeout(() => {
+      console.log(`Executing debounced transition to ${newStage}`)
+      stageRef.current = newStage
+      setStage(newStage)
+      transitioningToStageRef.current = null
+    }, 100) // 100ms debounce
+  }
   
   // Handle stage changes to update screen
   useEffect(() => {
@@ -592,8 +628,7 @@ function solution() {
             }
           }
           
-          stageRef.current = nextStage as InterviewStage
-          setStage(nextStage as InterviewStage)
+          transitionToStage(nextStage as InterviewStage)
           
           // Handle specific stage transitions
           if (nextStage === 'problem_introduction' && !hasAskedForThoughtsRef.current) {
@@ -667,8 +702,7 @@ function solution() {
         if (pendingStageTransitionRef.current) {
           const nextStage = pendingStageTransitionRef.current
           console.log(`Processing delayed stage transition: ${stageRef.current} → ${nextStage}`)
-          stageRef.current = nextStage as InterviewStage
-          setStage(nextStage as InterviewStage)
+          transitionToStage(nextStage as InterviewStage)
           
           // Handle specific stage transitions
           if (nextStage === 'problem_introduction' && !hasAskedForThoughtsRef.current) {
@@ -784,8 +818,7 @@ function solution() {
         // BUT still process stage transitions even for duplicates!
         if (data.nextStage) {
           console.log('Duplicate message but has stage transition - processing transition')
-          stageRef.current = data.nextStage
-          setStage(data.nextStage)
+          transitionToStage(data.nextStage as InterviewStage)
         }
         return // Don't add duplicate messages
       }
@@ -854,16 +887,40 @@ function solution() {
         }
       }, 100)
     } finally {
+      // Reset processing state after a delay to allow for duplicate detection
+      speechProcessingTimeoutRef.current = setTimeout(() => {
+        speechProcessingRef.current = false
+        lastProcessedSpeechRef.current = ''
+      }, 500)
       setIsProcessing(false)
     }
   }
   
   const processUserSpeech = async (text: string) => {
-    // Don't process if already processing or if AI is speaking
-    if (isProcessing || isSpeakingRef.current) {
-      console.log('Skipping speech processing - busy (processing:', isProcessing, ', speaking:', isSpeakingRef.current, ')')
+    // Normalize text for comparison
+    const normalizedText = text.trim().toLowerCase()
+    
+    // Check for duplicate processing
+    if (normalizedText === lastProcessedSpeechRef.current && speechProcessingRef.current) {
+      console.log('Duplicate speech detected, skipping:', normalizedText.substring(0, 50))
       return
     }
+    
+    // Don't process if already processing or if AI is speaking
+    if (speechProcessingRef.current || isSpeakingRef.current) {
+      console.log('Skipping speech processing - busy (processing:', speechProcessingRef.current, ', speaking:', isSpeakingRef.current, ')')
+      return
+    }
+    
+    // Clear any pending processing timeout
+    if (speechProcessingTimeoutRef.current) {
+      clearTimeout(speechProcessingTimeoutRef.current)
+    }
+    
+    // Mark as processing
+    speechProcessingRef.current = true
+    lastProcessedSpeechRef.current = normalizedText
+    setIsProcessing(true)
     
     const lowerText = text.toLowerCase()
     const currentStage = stageRef.current // Use ref to get current stage immediately
@@ -925,48 +982,43 @@ function solution() {
   }
   
   // Code monitoring and intelligent intervention system
-  const analyzeCodeProgress = () => {
+  const analyzeCodeProgress = async () => {
     if (stageRef.current !== 'coding') return
     
+    // Import behavioral analysis utilities
+    const { analyzeCodeBehavior, analyzeUserBehavior, determineIntervention } = 
+      await import('@/lib/utils/behavioral-analysis')
+    
     const currentTime = Date.now()
-    const timeSinceLastCode = (currentTime - lastCodeChangeRef.current) / 1000 // seconds
-    const timeSinceLastVoice = (currentTime - lastVoiceActivityRef.current) / 1000
     const timeSinceLastIntervention = (currentTime - lastInterventionRef.current) / 1000
     
-    console.log('Code analysis:', {
-      timeSinceLastCode,
-      timeSinceLastVoice,
-      timeSinceLastIntervention,
-      interventionCount: interventionCountRef.current
+    // Analyze code and user behavior
+    const currentCode = codeRef.current || code
+    const codeBehavior = analyzeCodeBehavior(currentCode, lastCodeRef.current)
+    const userBehavior = analyzeUserBehavior(
+      lastCodeChangeRef.current,
+      lastVoiceActivityRef.current,
+      codeHistoryRef.current
+    )
+    
+    console.log('Behavioral analysis:', {
+      codeBehavior,
+      userBehavior,
+      interventionCount: interventionCountRef.current,
+      timeSinceLastIntervention
     })
     
-    // Much more conservative - minimum 5 minutes between interventions
-    if (timeSinceLastIntervention < 300) {
-      console.log('Too soon since last intervention, skipping')
-      return
-    }
+    // Determine if intervention is needed
+    const intervention = determineIntervention(
+      codeBehavior,
+      userBehavior,
+      interventionCountRef.current,
+      timeSinceLastIntervention
+    )
     
-    // Only intervene after 2 interventions if really necessary
-    if (interventionCountRef.current >= 2 && timeSinceLastIntervention < 600) {
-      console.log('Too many interventions already, being less intrusive')
-      return
-    }
-    
-    // Very conservative intervention triggers
-    if (timeSinceLastCode > 360 && timeSinceLastVoice > 180) {
-      // User seems stuck - 6 minutes no code + 3 minutes no voice
-      console.log('Triggering stuck intervention')
-      triggerIntervention('stuck')
-    } else if (timeSinceLastCode > 420) {
-      // No code changes for 7+ minutes
-      console.log('Triggering no_progress intervention')
-      triggerIntervention('no_progress')
-    } else if (detectFunctionCompletion(codeRef.current || code)) {
-      // User just completed a function - only if 6+ minutes passed
-      if (timeSinceLastIntervention > 360) {
-        console.log('Triggering function_complete intervention')
-        triggerIntervention('function_complete')
-      }
+    if (intervention.shouldIntervene && intervention.type) {
+      console.log('Triggering behavioral intervention:', intervention.type)
+      triggerIntervention(intervention.type)
     }
   }
   
@@ -1011,25 +1063,29 @@ function solution() {
       lastVoiceActivityRef.current = Date.now()
       interventionCountRef.current = 0
       
-      // Wait 5 minutes before starting ANY monitoring to let user get settled
-      const startMonitoringDelay = setTimeout(() => {
-        console.log('Starting code monitoring after 5min delay')
+      // Variable delay before monitoring starts (3-6 minutes)
+      import('@/lib/utils/timing').then(({ getCodeMonitoringDelay, getInterventionCheckInterval }) => {
+        const monitoringDelay = getCodeMonitoringDelay()
         
-        // Check every 90 seconds for intervention opportunities (much less frequent)
-        const monitoringInterval = setInterval(() => {
-          analyzeCodeProgress()
-        }, 90000) // Check every 90 seconds instead of 60
+        const startMonitoringDelay = setTimeout(() => {
+          console.log(`Starting code monitoring after ${monitoringDelay/60000}min delay`)
+          
+          // Variable interval for checking interventions (60-120 seconds)
+          const checkInterval = getInterventionCheckInterval()
+          const monitoringInterval = setInterval(() => {
+            analyzeCodeProgress()
+          }, checkInterval)
         
-        // Store for cleanup
-        interventionTimerRef.current = monitoringInterval as any
-        
-        return () => clearInterval(monitoringInterval)
-      }, 300000) // 5 minute delay before monitoring starts
+          // Store for cleanup
+          interventionTimerRef.current = monitoringInterval as any
+          
+          return () => clearInterval(monitoringInterval)
+        }, monitoringDelay)
+      })
       
       // NO first check-in - it's annoying
       
       return () => {
-        clearTimeout(startMonitoringDelay)
         if (interventionTimerRef.current) {
           clearInterval(interventionTimerRef.current as any)
         }
@@ -1070,8 +1126,7 @@ function solution() {
           setTestResults(data)
           
           // Transition to testing stage
-          setStage('testing')
-          stageRef.current = 'testing'
+          transitionToStage('testing')
           
           // If all tests passed, end the interview immediately
           if (data.summary.allPassed) {
@@ -1089,8 +1144,7 @@ function solution() {
             
             // Transition to complete stage after 2 seconds
             setTimeout(() => {
-              setStage('complete')
-              stageRef.current = 'complete'
+              transitionToStage('complete')
               setScreen('complete')
               
               // Optional: Redirect to results page
@@ -1213,6 +1267,22 @@ function solution() {
   
   // Track code changes with debouncing
   const handleCodeChange = (newCode: string) => {
+    const prevLines = (lastCodeRef.current || '').split('\n').filter(l => l.trim()).length
+    const newLines = newCode.split('\n').filter(l => l.trim()).length
+    const linesChanged = Math.abs(newLines - prevLines)
+    
+    // Track code history for behavioral analysis
+    if (linesChanged > 0) {
+      codeHistoryRef.current.push({
+        timestamp: Date.now(),
+        linesChanged
+      })
+      // Keep only last 20 entries
+      if (codeHistoryRef.current.length > 20) {
+        codeHistoryRef.current.shift()
+      }
+    }
+    
     setCode(newCode)
     codeRef.current = newCode // Update ref for reliable access
     lastCodeChangeRef.current = Date.now()

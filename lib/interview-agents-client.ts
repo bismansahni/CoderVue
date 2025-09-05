@@ -259,15 +259,86 @@ export class InterviewOrchestrator {
   }
 
   private async provideHint(): Promise<AgentResponse> {
-    const hints = [
-      "Think about what data structure would help you track elements efficiently.",
-      "Consider using a sliding window approach.",
-      "What if you used two pointers?",
-      "Try breaking down the problem into smaller subproblems."
-    ];
+    // Analyze the problem type from context
+    const problemLower = this.context.question?.toLowerCase() || '';
+    const userCodeLower = this.context.currentCode?.toLowerCase() || '';
     
-    // Random hint for now
-    const hint = hints[Math.floor(Math.random() * hints.length)];
+    // Detect problem patterns
+    const isArrayProblem = /array|list|element|subarray/i.test(problemLower);
+    const isStringProblem = /string|substring|palindrome|anagram/i.test(problemLower);
+    const isTwoPointer = /two sum|pair|target|sorted/i.test(problemLower);
+    const isSlidingWindow = /window|consecutive|subarray|substring/i.test(problemLower);
+    const isHashMap = /frequency|count|duplicate|unique/i.test(problemLower);
+    const isGraph = /graph|tree|node|path|traversal/i.test(problemLower);
+    const isDynamic = /maximum|minimum|optimal|ways|combinations/i.test(problemLower);
+    
+    // Check what user has tried
+    const hasLoop = /for|while/i.test(userCodeLower);
+    const hasHashMap = /map|set|object|\{\}/i.test(userCodeLower);
+    const hasRecursion = userCodeLower.includes(this.context.question?.match(/function\s+(\w+)/)?.[1] || '');
+    
+    // Generate contextual hints
+    const hints: string[] = [];
+    
+    if (isTwoPointer && !userCodeLower.includes('pointer')) {
+      hints.push(
+        "Since the array is sorted, think about using two pointers.",
+        "What if you started from both ends of the array?",
+        "Two pointers can help you avoid nested loops here."
+      );
+    } else if (isSlidingWindow && !userCodeLower.includes('window')) {
+      hints.push(
+        "This looks like a sliding window problem - track a range of elements.",
+        "Consider maintaining a window of consecutive elements.",
+        "How can you efficiently update your answer as you slide through the array?"
+      );
+    } else if (isHashMap && !hasHashMap) {
+      hints.push(
+        "A hash map could help you track elements you've seen.",
+        "Consider using a Set or Map for O(1) lookups.",
+        "What information do you need to store as you iterate?"
+      );
+    } else if (isGraph) {
+      hints.push(
+        "Think about which traversal method fits this problem - BFS or DFS?",
+        "Consider what you need to track during traversal.",
+        "How will you handle visited nodes?"
+      );
+    } else if (isDynamic && !hasRecursion) {
+      hints.push(
+        "This might benefit from breaking into subproblems.",
+        "Consider if you're solving the same subproblems repeatedly.",
+        "What's the recurrence relation here?"
+      );
+    } else if (!hasLoop && !hasRecursion) {
+      hints.push(
+        "You'll need some form of iteration or recursion to process the input.",
+        "Think about how to traverse through your data.",
+        "Consider what needs to happen at each step."
+      );
+    } else {
+      // Generic hints based on time stuck
+      const timeStuck = this.context.timeElapsed;
+      if (timeStuck > 600) { // 10+ minutes
+        hints.push(
+          "Try working through a simple example by hand first.",
+          "What's the brute force solution? Start there and optimize.",
+          "Break the problem down - what needs to happen step by step?"
+        );
+      } else {
+        hints.push(
+          "Check your edge cases - empty input, single element, etc.",
+          "Make sure you're handling the base cases correctly.",
+          "Trace through your logic with a small example.",
+          "Are you updating your variables correctly in the loop?"
+        );
+      }
+    }
+    
+    // Pick a random hint from contextual hints
+    const hint = hints.length > 0 
+      ? hints[Math.floor(Math.random() * hints.length)]
+      : "Take your time and think through the problem step by step.";
     
     return {
       message: hint,

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSuccessMessage } from "@/lib/utils/messages";
 
 // Function to execute JavaScript code only (Python runs in browser via Pyodide)
 function executeCode(code: string, testInput: any): { result: any, error: string | null } {
@@ -56,6 +57,39 @@ export async function POST(req: NextRequest) {
       );
     }
     
+    // Validate code has actual implementation
+    const trimmedCode = code.trim();
+    const isJavaScript = trimmedCode.includes('function') || trimmedCode.includes('=>') || trimmedCode.includes('const');
+    const isPython = trimmedCode.includes('def ') || trimmedCode.includes('return ');
+    
+    // Check for minimal code content
+    const hasImplementation = (isJavaScript || isPython) && 
+                             trimmedCode.length > 50 && 
+                             (trimmedCode.includes('return') || trimmedCode.includes('console.log'));
+    
+    // Count non-comment lines
+    const codeLines = trimmedCode
+      .split('\n')
+      .filter(line => {
+        const stripped = line.trim();
+        return stripped && 
+               !stripped.startsWith('//') && 
+               !stripped.startsWith('#') &&
+               !stripped.startsWith('/*') &&
+               !stripped.startsWith('*');
+      });
+    
+    if (!hasImplementation || codeLines.length < 3) {
+      return NextResponse.json(
+        { 
+          error: "Please complete your implementation before running tests",
+          details: "Your code needs more implementation details",
+          success: false
+        },
+        { status: 400 }
+      );
+    }
+    
     // Use provided test cases (AI-generated)
     const testCases = providedTestCases || [];
     
@@ -101,9 +135,10 @@ export async function POST(req: NextRequest) {
         failed: testCases.length - passedCount,
         allPassed
       },
-      message: allPassed 
-        ? "All tests passed! Great job!" 
-        : `${passedCount}/${testCases.length} tests passed. Keep working on it!`
+      message: getSuccessMessage({
+        testsTotal: testCases.length,
+        testsPassed: passedCount
+      })
     });
     
   } catch (error) {

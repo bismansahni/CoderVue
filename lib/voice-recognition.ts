@@ -343,14 +343,29 @@ export class NaturalVoiceRecognition {
   }
 }
 
-// Stage-specific silence thresholds
+// Dynamic stage-specific silence thresholds with variation
+export const getStageThreshold = (stage: string): number => {
+  const baseThresholds: Record<string, { min: number; max: number }> = {
+    greeting: { min: 1200, max: 1800 },
+    clarification: { min: 1300, max: 2000 },
+    discussion: { min: 1800, max: 2500 },
+    coding: { min: 4000, max: 6000 },
+    testing: { min: 1800, max: 2500 },
+    optimization: { min: 2500, max: 3500 },
+  };
+  
+  const threshold = baseThresholds[stage] || { min: 1500, max: 2500 };
+  return Math.floor(Math.random() * (threshold.max - threshold.min + 1)) + threshold.min;
+};
+
+// Legacy export for backward compatibility
 export const STAGE_SILENCE_THRESHOLDS = {
-  greeting: 1500,        // 1.5 seconds - quick responses expected
-  clarification: 1500,   // 1.5 seconds - Q&A style
-  discussion: 2000,      // 2 seconds - allow for thinking
-  coding: 5000,         // 5 seconds - need time to think while coding
-  testing: 2000,        // 2 seconds - discussing results
-  optimization: 3000,   // 3 seconds - complex thinking
+  greeting: 1500,
+  clarification: 1500,
+  discussion: 2000,
+  coding: 5000,
+  testing: 2000,
+  optimization: 3000,
 };
 
 // Helper to detect if user is actively typing

@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { Stream } from 'openai/streaming';
+import { calculateDynamicScore, getScoreFeedback, analyzeCommunicationQuality, analyzeCodeQuality } from '@/lib/utils/scoring';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
